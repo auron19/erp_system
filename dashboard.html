@@ -1,0 +1,1692 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Phelai's Boutique</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+    
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { 
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f8f9fa;
+            display: flex;
+        }
+        
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            height: 100vh;
+            position: fixed;
+            box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+        }
+        .logo {
+            padding: 2rem 1.5rem;
+            text-align: center;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+        }
+        .logo-main {
+            font-size: 1.8rem;
+            font-weight: bold;
+            margin-bottom: 0.5rem;
+        }
+        .logo-subtitle {
+            font-size: 1rem;
+            opacity: 0.9;
+            font-style: italic;
+        }
+        .nav-links { padding: 1rem 0; }
+        .nav-link {
+            display: flex;
+            align-items: center;
+            padding: 1rem 1.5rem;
+            color: white;
+            text-decoration: none;
+            transition: all 0.3s;
+            border-left: 4px solid transparent;
+        }
+        .nav-link:hover {
+            background: rgba(255,255,255,0.1);
+            border-left: 4px solid #fff;
+        }
+        .nav-link.active {
+            background: rgba(255,255,255,0.2);
+            border-left: 4px solid #fff;
+        }
+        .nav-link i { 
+            width: 20px; 
+            margin-right: 1rem;
+            font-size: 1.1rem;
+        }
+        
+        /* Main Content */
+        .main-content {
+            margin-left: 280px;
+            padding: 2rem;
+            width: calc(100% - 280px);
+            min-height: 100vh;
+        }
+        .header {
+            background: white;
+            padding: 1.5rem 2rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .header h1 {
+            color: #333;
+            font-size: 1.8rem;
+        }
+        .user-info {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+        }
+        
+        /* Cards */
+        .card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 1.5rem;
+            border-left: 4px solid #667eea;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 15px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            text-align: center;
+            transition: transform 0.3s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+        }
+        .stat-card i {
+            font-size: 2.5rem;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 1rem;
+        }
+        .stat-card h3 {
+            color: #666;
+            font-size: 0.9rem;
+            margin-bottom: 0.5rem;
+        }
+        .stat-card p {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #333;
+        }
+        
+        /* Sections */
+        .section { display: none; }
+        .section.active { display: block; }
+        
+        /* Buttons */
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: transform 0.2s;
+            text-decoration: none;
+            display: inline-block;
+            text-align: center;
+        }
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+        .btn-success {
+            background: linear-gradient(135deg, #28a745, #20c997);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #dc3545, #c82333);
+        }
+        .btn-warning {
+            background: linear-gradient(135deg, #ffc107, #e0a800);
+        }
+        
+        /* POS Styles */
+        .pos-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 2rem;
+        }
+        .cart-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 1rem;
+            border-bottom: 1px solid #eee;
+        }
+        .cart-item:hover {
+            background: #f8f9fa;
+        }
+
+        /* Inventory Styles */
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 2rem;
+        }
+        
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .form-group input, .form-group select, .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        
+        .form-group input:focus, .form-group select:focus, .form-group textarea:focus {
+            border-color: #667eea;
+            outline: none;
+        }
+        
+        .qr-container {
+            text-align: center;
+            padding: 2rem;
+            background: white;
+            border-radius: 10px;
+            margin-bottom: 1rem;
+            border: 2px dashed #667eea;
+        }
+        
+        .product-info {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 10px;
+            margin-top: 1rem;
+        }
+        
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+            padding: 0.5rem 0;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .info-label {
+            font-weight: 600;
+            color: #666;
+        }
+        
+        .info-value {
+            color: #333;
+        }
+        
+        .batch-section {
+            margin-top: 2rem;
+            padding-top: 2rem;
+            border-top: 2px solid #e1e5e9;
+        }
+        
+        .batch-controls {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        
+        .batch-preview {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-top: 1rem;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+        
+        .batch-qr {
+            text-align: center;
+            padding: 1rem;
+            background: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border: 1px solid #e1e5e9;
+        }
+        
+        .batch-qr canvas {
+            max-width: 100%;
+            height: auto;
+        }
+        
+        .product-id {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            font-weight: 600;
+            color: #667eea;
+        }
+
+        .tab-buttons {
+            display: flex;
+            margin-bottom: 1.5rem;
+            border-bottom: 2px solid #e1e5e9;
+        }
+        
+        .tab-button {
+            padding: 1rem 2rem;
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-weight: 600;
+            color: #666;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .tab-button:hover {
+            color: #667eea;
+        }
+        
+        .tab-button.active {
+            color: #667eea;
+            border-bottom: 3px solid #667eea;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+
+        /* Table Styles */
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 1rem;
+        }
+        
+        .table th, .table td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid #e1e5e9;
+        }
+        
+        .table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+        }
+        
+        .table tr:hover {
+            background: #f8f9fa;
+        }
+        
+        .stock-low {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        
+        .stock-ok {
+            color: #28a745;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            padding: 2rem;
+            border-radius: 15px;
+            width: 90%;
+            max-width: 500px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+        }
+        
+        .close-modal {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #666;
+        }
+
+        /* Loading */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Floating Notification */
+        .floating-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideInRight 0.3s ease-out;
+            max-width: 400px;
+        }
+        
+        .floating-notification.error {
+            background: #dc3545;
+        }
+        
+        .floating-notification.warning {
+            background: #ffc107;
+            color: #000;
+        }
+        
+        .floating-notification.info {
+            background: #17a2b8;
+        }
+        
+        .notification-close {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 1.2rem;
+            margin-left: auto;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+        
+        .stock-warning {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 8px 12px;
+            margin: 5px 0;
+            font-size: 0.9rem;
+            color: #856404;
+        }
+        
+        .out-of-stock {
+            background: #f8d7da;
+            border: 1px solid #f5c6cb;
+            color: #721c24;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                height: auto;
+                position: relative;
+            }
+            .main-content {
+                margin-left: 0;
+                width: 100%;
+            }
+            .pos-grid, .inventory-grid {
+                grid-template-columns: 1fr;
+            }
+            .tab-buttons {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="logo">
+            <div class="logo-main">TRIPLE A</div>
+            <div class="logo-subtitle">Phelai's Boutique</div>
+        </div>
+        <div class="nav-links">
+            <a href="#" class="nav-link active" onclick="showSection('dashboard')">
+                <i class="fas fa-chart-bar"></i> Dashboard
+            </a>
+            <a href="#" class="nav-link" onclick="showSection('pos')">
+                <i class="fas fa-cash-register"></i> POS System
+            </a>
+            <a href="#" class="nav-link" onclick="showSection('inventory')">
+                <i class="fas fa-tshirt"></i> Inventory
+            </a>
+            <a href="#" class="nav-link" onclick="showSection('reports')">
+                <i class="fas fa-chart-line"></i> Reports
+            </a>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <div class="header">
+            <h1 id="page-title">Dashboard Overview</h1>
+            <div class="user-info">
+                <div class="user-avatar">
+                    <i class="fas fa-user"></i>
+                </div>
+                <div>
+                    <strong id="username-display">Administrator</strong><br>
+                    <small>Phelai's Boutique</small>
+                </div>
+                <button class="btn btn-danger" onclick="logout()" style="margin-left: 1rem; padding: 8px 16px;">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </button>
+            </div>
+        </div>
+
+        <!-- Dashboard Section -->
+        <div id="dashboard" class="section active">
+            <div class="stats-grid" id="stats-grid">
+                <div class="stat-card">
+                    <i class="fas fa-shopping-cart"></i>
+                    <h3>TODAY'S SALES</h3>
+                    <p id="today-sales">₱0.00</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-tshirt"></i>
+                    <h3>TOTAL PRODUCTS</h3>
+                    <p id="total-products">0</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <h3>LOW STOCK ITEMS</h3>
+                    <p id="low-stock">0</p>
+                </div>
+                <div class="stat-card">
+                    <i class="fas fa-calendar-day"></i>
+                    <h3>TODAY'S TRANSACTIONS</h3>
+                    <p id="today-transactions">0</p>
+                </div>
+            </div>
+
+            <div class="card">
+                <h3><i class="fas fa-chart-line"></i> Sales Performance (Last 7 Days)</h3>
+                <div id="sales-chart" style="height: 300px; margin-top: 1rem;">
+                    <p style="text-align: center; color: #666; padding: 2rem;">Sales chart will be displayed here</p>
+                </div>
+            </div>
+
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem;">
+                <div class="card">
+                    <h3><i class="fas fa-fire"></i> Top Selling Products</h3>
+                    <div id="top-products" style="margin-top: 1rem;">
+                        <div class="cart-item">
+                            <div>
+                                <strong>No data yet</strong><br>
+                                <small>Start selling to see top products</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3><i class="fas fa-bell"></i> Recent Activity</h3>
+                    <div id="recent-activity" style="margin-top: 1rem;">
+                        <div class="cart-item">
+                            <i class="fas fa-info-circle" style="color: #667eea;"></i>
+                            <div style="flex: 1; margin-left: 1rem;">
+                                <strong>System Started</strong><br>
+                                <small>Welcome to Phelai's Boutique</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- POS Section -->
+        <div id="pos" class="section">
+            <div class="card">
+                <h2><i class="fas fa-cash-register"></i> Point of Sale System</h2>
+                
+                <div class="pos-grid">
+                    <!-- Left: Product Input & Cart -->
+                    <div>
+                        <div style="margin-bottom: 1.5rem;">
+                            <input type="text" id="barcodeInput" placeholder="📦 Scan QR/Barcode or enter product code" 
+                                   style="width: 100%; padding: 15px; border: 2px solid #667eea; border-radius: 10px; font-size: 16px;">
+                            <div id="product-search-results" style="display: none; margin-top: 0.5rem; border: 1px solid #e1e5e9; border-radius: 8px; max-height: 200px; overflow-y: auto;"></div>
+                        </div>
+                        
+                        <div class="card">
+                            <h4><i class="fas fa-shopping-cart"></i> Shopping Cart</h4>
+                            <div id="cart" style="min-height: 400px; max-height: 500px; overflow-y: auto; margin-top: 1rem;">
+                                <p style="text-align: center; color: #666; padding: 3rem;">Cart is empty<br><small>Scan products to add them to cart</small></p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right: Payment Section -->
+                    <div>
+                        <div class="card">
+                            <h4><i class="fas fa-receipt"></i> Payment Summary</h4>
+                            <div style="margin: 1.5rem 0;">
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                                    <span>Subtotal:</span>
+                                    <span id="subtotal">₱0.00</span>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+                                    <span>Tax (12%):</span>
+                                    <span id="tax">₱0.00</span>
+                                </div>
+                                <hr style="margin: 1rem 0;">
+                                <div style="display: flex; justify-content: space-between; font-size: 1.2rem; font-weight: bold;">
+                                    <span>Total:</span>
+                                    <span id="total">₱0.00</span>
+                                </div>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="payment-method">Payment Method</label>
+                                <select id="payment-method" style="width: 100%; padding: 12px; border: 2px solid #e1e5e9; border-radius: 8px;">
+                                    <option value="cash">Cash</option>
+                                    <option value="gcash">GCash</option>
+                                    <option value="card">Credit/Debit Card</option>
+                                </select>
+                            </div>
+                            
+                            <button onclick="processPayment()" class="btn" style="width: 100%; padding: 15px; margin-bottom: 1rem;">
+                                <i class="fas fa-credit-card"></i> Process Payment
+                            </button>
+                        </div>
+                        
+                        <div class="card">
+                            <h4><i class="fas fa-qrcode"></i> Quick Actions</h4>
+                            <button onclick="clearCart()" class="btn btn-danger" style="width: 100%; margin: 0.5rem 0;">
+                                <i class="fas fa-trash"></i> Clear Cart
+                            </button>
+                            <button onclick="applyDiscount()" class="btn btn-warning" style="width: 100%; margin: 0.5rem 0;">
+                                <i class="fas fa-tag"></i> Apply Discount
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Inventory Section -->
+        <div id="inventory" class="section">
+            <div class="card">
+                <h2><i class="fas fa-tshirt"></i> Inventory Management</h2>
+                
+                <div class="tab-buttons">
+                    <button class="tab-button active" onclick="showTab('products-tab')">Products List</button>
+                    <button class="tab-button" onclick="showTab('add-product-tab')">Add Product</button>
+                    <button class="tab-button" onclick="showTab('qr-generator-tab')">QR Code Generator</button>
+                </div>
+                
+                <!-- Products List Tab -->
+                <div id="products-tab" class="tab-content active">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                        <h3>Product Inventory</h3>
+                        <button class="btn btn-success" onclick="loadProducts()">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                    <div id="products-list">
+                        <div class="loading"></div> Loading products...
+                    </div>
+                </div>
+                
+                <!-- Add Product Tab -->
+                <div id="add-product-tab" class="tab-content">
+                    <h3>Add New Product</h3>
+                    <form id="add-product-form">
+                        <div class="form-group">
+                            <label for="productBarcode">Barcode *</label>
+                            <input type="text" id="productBarcode" required placeholder="e.g., P001, DRESS001">
+                        </div>
+                        <div class="form-group">
+                            <label for="productName">Product Name *</label>
+                            <input type="text" id="productName" required placeholder="e.g., Classic White T-Shirt">
+                        </div>
+                        <div class="form-group">
+                            <label for="productCategory">Category *</label>
+                            <select id="productCategory" required>
+                                <option value="">Select Category</option>
+                                <option value="Tops">Tops</option>
+                                <option value="Bottoms">Bottoms</option>
+                                <option value="Dresses">Dresses</option>
+                                <option value="Outerwear">Outerwear</option>
+                                <option value="Accessories">Accessories</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="productSize">Size</label>
+                            <select id="productSize">
+                                <option value="">Select Size</option>
+                                <option value="XS">XS</option>
+                                <option value="S">S</option>
+                                <option value="M">M</option>
+                                <option value="L">L</option>
+                                <option value="XL">XL</option>
+                                <option value="28">28</option>
+                                <option value="30">30</option>
+                                <option value="32">32</option>
+                                <option value="34">34</option>
+                                <option value="36">36</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="productColor">Color</label>
+                            <input type="text" id="productColor" placeholder="e.g., White, Black, Red">
+                        </div>
+                        <div class="form-group">
+                            <label for="productPrice">Price (₱) *</label>
+                            <input type="number" id="productPrice" step="0.01" required placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label for="productCost">Cost Price (₱) *</label>
+                            <input type="number" id="productCost" step="0.01" required placeholder="0.00">
+                        </div>
+                        <div class="form-group">
+                            <label for="productStock">Initial Stock Quantity *</label>
+                            <input type="number" id="productStock" required placeholder="0" value="0">
+                        </div>
+                        <button type="button" class="btn" onclick="addProduct()">
+                            <i class="fas fa-plus"></i> Add Product to Inventory
+                        </button>
+                    </form>
+
+                    <div style="text-align: center; margin: 1rem 0; padding: 1rem; background: #f8f9fa; border-radius: 8px;">
+                        <h4>Quick Actions</h4>
+                        <button onclick="testFirebase()" class="btn btn-warning" style="margin: 5px;">
+                            <i class="fas fa-bolt"></i> Test Firebase
+                        </button>
+                        <button onclick="addSampleProducts()" class="btn btn-info" style="margin: 5px;">
+                            <i class="fas fa-vial"></i> Add Sample Products
+                        </button>
+                        <button onclick="loadProducts()" class="btn btn-success" style="margin: 5px;">
+                            <i class="fas fa-sync"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- QR Code Generator Tab -->
+                <div id="qr-generator-tab" class="tab-content">
+                    <div class="inventory-grid">
+                        <!-- Left: Product Selection & Form -->
+                        <div>
+                            <h3>Generate Product QR Codes</h3>
+                            
+                            <div class="form-group">
+                                <label for="qrProductSelect">Select Product</label>
+                                <select id="qrProductSelect" onchange="loadProductForQR()">
+                                    <option value="">Select a product...</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="qrProductId">Product ID / Barcode *</label>
+                                <input type="text" id="qrProductId" required placeholder="e.g., P001, DRESS001">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="qrProductName">Product Name *</label>
+                                <input type="text" id="qrProductName" required placeholder="e.g., Classic White T-Shirt">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="qrCategory">Category *</label>
+                                <select id="qrCategory" required>
+                                    <option value="">Select Category</option>
+                                    <option value="Tops">Tops</option>
+                                    <option value="Bottoms">Bottoms</option>
+                                    <option value="Dresses">Dresses</option>
+                                    <option value="Outerwear">Outerwear</option>
+                                    <option value="Accessories">Accessories</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="qrSize">Size</label>
+                                <select id="qrSize">
+                                    <option value="">Select Size</option>
+                                    <option value="XS">XS</option>
+                                    <option value="S">S</option>
+                                    <option value="M">M</option>
+                                    <option value="L">L</option>
+                                    <option value="XL">XL</option>
+                                </select>
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="qrColor">Color</label>
+                                <input type="text" id="qrColor" placeholder="e.g., White, Black, Red">
+                            </div>
+                            
+                            <div class="form-group">
+                                <label for="qrPrice">Price (₱)</label>
+                                <input type="number" id="qrPrice" step="0.01" placeholder="0.00">
+                            </div>
+                            
+                            <button class="btn" onclick="generateQRCode()" style="margin-bottom: 1rem;">
+                                <i class="fas fa-qrcode"></i> Generate QR Code
+                            </button>
+                            
+                            <!-- Batch Controls -->
+                            <div class="batch-section">
+                                <h4>Batch QR Generation</h4>
+                                <div class="batch-controls">
+                                    <input type="number" id="batchCount" placeholder="Number of QR codes" min="1" max="50" value="1">
+                                    <button class="btn btn-success" onclick="generateBatchQR()">Generate Batch</button>
+                                </div>
+                                <div class="batch-preview" id="batchPreview"></div>
+                            </div>
+                        </div>
+                        
+                        <!-- Right: QR Preview -->
+                        <div>
+                            <h3>QR Code Preview</h3>
+                            <div class="qr-container">
+                                <div id="qrcode"></div>
+                                <p style="color: #666; margin-top: 1rem; font-size: 0.9rem;">
+                                    Scan this QR code with your POS system to quickly add products
+                                </p>
+                            </div>
+                            
+                            <div class="product-info">
+                                <h4>Product Details</h4>
+                                <div class="info-row">
+                                    <span class="info-label">Product ID:</span>
+                                    <span class="info-value" id="previewId">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Name:</span>
+                                    <span class="info-value" id="previewName">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Category:</span>
+                                    <span class="info-value" id="previewCategory">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Size:</span>
+                                    <span class="info-value" id="previewSize">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Color:</span>
+                                    <span class="info-value" id="previewColor">-</span>
+                                </div>
+                                <div class="info-row">
+                                    <span class="info-label">Price:</span>
+                                    <span class="info-value" id="previewPrice">-</span>
+                                </div>
+                            </div>
+                            
+                            <button class="btn btn-success" onclick="printQRCode()" style="width: 100%; margin-top: 1rem;">
+                                <i class="fas fa-print"></i> Print QR Code
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Reports Section -->
+        <div id="reports" class="section">
+            <div class="card">
+                <h2><i class="fas fa-chart-line"></i> Sales Reports</h2>
+                <div id="reports-content">
+                    <p>Sales reports and analytics will be displayed here.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Print Modal -->
+    <div id="printModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>Print QR Code</h3>
+                <button class="close-modal" onclick="closePrintModal()">&times;</button>
+            </div>
+            <div id="print-content"></div>
+            <button class="btn" onclick="window.print()" style="width: 100%; margin-top: 1rem;">
+                <i class="fas fa-print"></i> Print
+            </button>
+        </div>
+    </div>
+
+    <script>
+       
+    // Firebase Configuration - ITO NA ANG GAGAMITIN
+    const firebaseConfig = {
+        apiKey: "AIzaSyDmKoIpaYbZDGVifyyZs0o75zJQcuRjqyc",
+        authDomain: "boutique-f7274.firebaseapp.com",
+        projectId: "boutique-f7274",
+        storageBucket: "boutique-f7274.firebasestorage.app",
+        messagingSenderId: "244540869684",
+        appId: "1:244540869684:web:bb5f79a0af67c5e31f0e61"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            checkLogin();
+            initializeApp();
+        });
+
+        function checkLogin() {
+            const user = localStorage.getItem('user');
+            if (!user) {
+                window.location.href = 'index.html';
+                return;
+            }
+            document.getElementById('username-display').textContent = 'Administrator';
+        }
+
+        async function initializeApp() {
+            console.log('🚀 Initializing app...');
+            await loadProducts();
+            await loadDashboardStats();
+            setupRealTimeListeners();
+            console.log('✅ App initialized with real-time listeners');
+        }
+
+        // FLOATING NOTIFICATION FUNCTION
+        function showFloatingNotification(message, type = 'success') {
+            // Remove existing notifications
+            const existingNotifications = document.querySelectorAll('.floating-notification');
+            existingNotifications.forEach(notif => notif.remove());
+            
+            const notification = document.createElement('div');
+            notification.className = `floating-notification ${type}`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}"></i>
+                <span>${message}</span>
+                <button class="notification-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            // Auto remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        // Load products function
+        async function loadProducts() {
+            try {
+                console.log('📦 Loading products...');
+                const snapshot = await db.collection('products')
+                    .orderBy('name')
+                    .get();
+                
+                allProducts = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                
+                console.log(`✅ Loaded ${allProducts.length} products`);
+                displayProducts(allProducts);
+                populateQRProductSelect(allProducts);
+                
+            } catch (error) {
+                console.error('❌ Error loading products:', error);
+                showFloatingNotification('Error loading products: ' + error.message, 'error');
+            }
+        }
+
+        // Display products
+        function displayProducts(products) {
+            const container = document.getElementById('products-list');
+            if (!products || products.length === 0) {
+                container.innerHTML = '<p>No products found. Add some products to get started!</p>';
+                return;
+            }
+
+            let html = `
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>Barcode</th>
+                            <th>Name</th>
+                            <th>Category</th>
+                            <th>Size</th>
+                            <th>Color</th>
+                            <th>Price</th>
+                            <th>Stock</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            products.forEach(product => {
+                const stockStatus = product.stock_quantity <= (product.min_stock || 5) ? 
+                    '<span class="stock-low">Low Stock</span>' : 
+                    '<span class="stock-ok">In Stock</span>';
+                
+                html += `
+                    <tr>
+                        <td>${product.barcode}</td>
+                        <td>${product.name}</td>
+                        <td>${product.category}</td>
+                        <td>${product.size || '-'}</td>
+                        <td>${product.color || '-'}</td>
+                        <td>₱${parseFloat(product.price).toFixed(2)}</td>
+                        <td>${product.stock_quantity}</td>
+                        <td>${stockStatus}</td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+            container.innerHTML = html;
+        }
+
+        // Add product function
+        async function addProduct() {
+            const barcode = document.getElementById('productBarcode').value.trim();
+            const name = document.getElementById('productName').value.trim();
+            const category = document.getElementById('productCategory').value;
+            const size = document.getElementById('productSize').value;
+            const color = document.getElementById('productColor').value.trim();
+            const price = parseFloat(document.getElementById('productPrice').value);
+            const cost_price = parseFloat(document.getElementById('productCost').value) || price;
+            const stock_quantity = parseInt(document.getElementById('productStock').value) || 0;
+
+            // Quick validation
+            if (!barcode || !name || !category) {
+                showFloatingNotification('❌ Please fill in Barcode, Name, and Category', 'error');
+                return;
+            }
+
+            const button = document.querySelector('#add-product-tab button');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<div class="loading"></div> Adding...';
+            button.disabled = true;
+
+            try {
+                console.log('🔄 Adding product:', { barcode, name });
+
+                // Check if barcode exists
+                const existing = await db.collection('products')
+                    .where('barcode', '==', barcode)
+                    .get();
+                
+                if (!existing.empty) {
+                    throw new Error('Barcode already exists');
+                }
+
+                const productData = {
+                    barcode,
+                    name,
+                    category,
+                    size: size || '',
+                    color: color || '',
+                    price: price || 0,
+                    cost_price: cost_price || 0,
+                    stock_quantity: stock_quantity || 0,
+                    min_stock: 5,
+                    created_at: firebase.firestore.FieldValue.serverTimestamp()
+                };
+
+                await db.collection('products').add(productData);
+                
+                showFloatingNotification('✅ Product added successfully!', 'success');
+                document.getElementById('add-product-form').reset();
+                
+                // Refresh products
+                await loadProducts();
+                
+            } catch (error) {
+                console.error('❌ Error adding product:', error);
+                showFloatingNotification('❌ Error: ' + error.message, 'error');
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // POS Functions
+        async function findProductByBarcode(barcode) {
+            try {
+                const snapshot = await db.collection('products')
+                    .where('barcode', '==', barcode)
+                    .get();
+                
+                if (!snapshot.empty) {
+                    const doc = snapshot.docs[0];
+                    return {
+                        id: doc.id,
+                        ...doc.data()
+                    };
+                }
+                return null;
+            } catch (error) {
+                console.error('Error finding product:', error);
+                return null;
+            }
+        }
+
+        function addToCart(product) {
+            const existingItem = cart.find(item => item.id === product.id);
+            
+            if (existingItem) {
+                const newQuantity = existingItem.quantity + 1;
+                if (newQuantity > product.stock_quantity) {
+                    showFloatingNotification(`❌ Not enough stock! Only ${product.stock_quantity} available`, 'error');
+                    return;
+                }
+                existingItem.quantity = newQuantity;
+            } else {
+                if (product.stock_quantity < 1) {
+                    showFloatingNotification('❌ Product out of stock!', 'error');
+                    return;
+                }
+                cart.push({
+                    ...product,
+                    quantity: 1
+                });
+            }
+            
+            updateCartDisplay();
+            showFloatingNotification(`✅ ${product.name} added to cart!`, 'success');
+        }
+
+        function updateCartDisplay() {
+            const cartContainer = document.getElementById('cart');
+            const subtotalElement = document.getElementById('subtotal');
+            const taxElement = document.getElementById('tax');
+            const totalElement = document.getElementById('total');
+            
+            if (cart.length === 0) {
+                cartContainer.innerHTML = '<p style="text-align: center; color: #666; padding: 3rem;">Cart is empty<br><small>Scan products to add them to cart</small></p>';
+                subtotalElement.textContent = '₱0.00';
+                taxElement.textContent = '₱0.00';
+                totalElement.textContent = '₱0.00';
+                return;
+            }
+            
+            let html = '';
+            let subtotal = 0;
+            
+            cart.forEach(item => {
+                const itemTotal = item.price * item.quantity;
+                subtotal += itemTotal;
+                
+                // Stock warning
+                const stockStatus = item.quantity > item.stock_quantity ? 
+                    `<div class="stock-warning out-of-stock">
+                        <i class="fas fa-exclamation-triangle"></i> Not enough stock! 
+                        (Available: ${item.stock_quantity})
+                    </div>` :
+                    (item.stock_quantity - item.quantity <= 5 ? 
+                    `<div class="stock-warning">
+                        <i class="fas fa-info-circle"></i> Low stock after purchase 
+                        (Will be: ${item.stock_quantity - item.quantity})
+                    </div>` : '');
+                
+                html += `
+                    <div class="cart-item">
+                        <div style="flex: 1;">
+                            <strong>${item.name}</strong><br>
+                            <small>${item.barcode} • ₱${item.price.toFixed(2)}</small>
+                            ${stockStatus}
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <button onclick="updateQuantity('${item.id}', -1)" class="btn btn-warning" style="padding: 5px 10px;">-</button>
+                            <span style="font-weight: bold; min-width: 30px; text-align: center;">${item.quantity}</span>
+                            <button onclick="updateQuantity('${item.id}', 1)" class="btn btn-success" style="padding: 5px 10px;">+</button>
+                            <strong>₱${itemTotal.toFixed(2)}</strong>
+                            <button onclick="removeFromCart('${item.id}')" class="btn btn-danger" style="padding: 5px 10px; margin-left: 10px;">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            const tax = subtotal * 0.12;
+            const total = subtotal + tax;
+            
+            cartContainer.innerHTML = html;
+            subtotalElement.textContent = '₱' + subtotal.toFixed(2);
+            taxElement.textContent = '₱' + tax.toFixed(2);
+            totalElement.textContent = '₱' + total.toFixed(2);
+        }
+
+        function updateQuantity(productId, change) {
+            const item = cart.find(item => item.id === productId);
+            if (item) {
+                const newQuantity = item.quantity + change;
+                
+                if (newQuantity < 1) {
+                    removeFromCart(productId);
+                    return;
+                }
+                
+                // Check stock availability
+                const product = allProducts.find(p => p.id === productId);
+                if (product && newQuantity > product.stock_quantity) {
+                    showFloatingNotification(`❌ Cannot add more! Only ${product.stock_quantity} available`, 'error');
+                    return;
+                }
+                
+                item.quantity = newQuantity;
+                updateCartDisplay();
+            }
+        }
+
+        function removeFromCart(productId) {
+            const item = cart.find(item => item.id === productId);
+            if (item) {
+                showFloatingNotification(`🗑️ ${item.name} removed from cart`, 'warning');
+            }
+            cart = cart.filter(item => item.id !== productId);
+            updateCartDisplay();
+        }
+
+        function clearCart() {
+            if (cart.length > 0) {
+                showFloatingNotification('🗑️ Cart cleared', 'warning');
+            }
+            cart = [];
+            updateCartDisplay();
+        }
+
+        // Process Payment with Real Stock Update
+        async function processPayment() {
+            if (cart.length === 0) {
+                showFloatingNotification('❌ Cart is empty!', 'error');
+                return;
+            }
+
+            // Validate stock before processing
+            for (const item of cart) {
+                const product = allProducts.find(p => p.id === item.id);
+                if (!product) {
+                    showFloatingNotification(`❌ Product ${item.name} not found!`, 'error');
+                    return;
+                }
+                if (item.quantity > product.stock_quantity) {
+                    showFloatingNotification(`❌ Not enough stock for ${item.name}! Available: ${product.stock_quantity}`, 'error');
+                    return;
+                }
+            }
+
+            const button = document.querySelector('#pos button');
+            const originalText = button.innerHTML;
+            button.innerHTML = '<div class="loading"></div> Processing...';
+            button.disabled = true;
+
+            try {
+                // Calculate totals
+                const subtotal = cart.reduce((sum, item) => sum + (item.price * item.quantity), 0);
+                const tax = subtotal * 0.12;
+                const total = subtotal + tax;
+                const paymentMethod = document.getElementById('payment-method').value;
+
+                // Create sale record
+                const saleData = {
+                    transaction_code: 'TXN' + Date.now(),
+                    total_amount: total,
+                    tax_amount: tax,
+                    payment_method: paymentMethod,
+                    cashier_id: 'admin',
+                    created_at: firebase.firestore.FieldValue.serverTimestamp(),
+                    items: cart.map(item => ({
+                        product_id: item.id,
+                        product_name: item.name,
+                        barcode: item.barcode,
+                        quantity: item.quantity,
+                        unit_price: item.price,
+                        total_price: item.price * item.quantity
+                    }))
+                };
+
+                // Use batch write for atomic operations
+                const batch = db.batch();
+                
+                // Add sale record
+                const saleRef = db.collection('sales').doc();
+                batch.set(saleRef, saleData);
+
+                // Update product stock
+                cart.forEach(item => {
+                    const productRef = db.collection('products').doc(item.id);
+                    batch.update(productRef, {
+                        stock_quantity: firebase.firestore.FieldValue.increment(-item.quantity)
+                    });
+                });
+
+                // Commit all operations
+                await batch.commit();
+
+                showFloatingNotification(`✅ Payment successful! Transaction: ${saleData.transaction_code}`, 'success');
+                
+                // Clear cart and refresh data
+                clearCart();
+                await loadProducts(); // Refresh product list to get updated stock
+                await loadDashboardStats(); // Refresh dashboard stats
+                
+            } catch (error) {
+                console.error('❌ Error processing payment:', error);
+                showFloatingNotification('❌ Payment failed: ' + error.message, 'error');
+            } finally {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }
+        }
+
+        // Dashboard Stats with Real-time Sales
+        async function loadDashboardStats() {
+            try {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                // Today's sales
+                const salesSnapshot = await db.collection('sales')
+                    .where('created_at', '>=', today)
+                    .get();
+                
+                const todaySales = salesSnapshot.docs.reduce((sum, doc) => {
+                    return sum + (doc.data().total_amount || 0);
+                }, 0);
+
+                // Total products
+                const productsSnapshot = await db.collection('products').get();
+                const totalProducts = productsSnapshot.size;
+
+                // Low stock items
+                const lowStockSnapshot = await db.collection('products')
+                    .where('stock_quantity', '<=', 5)
+                    .get();
+                const lowStock = lowStockSnapshot.size;
+
+                // Update UI
+                document.getElementById('today-sales').textContent = '₱' + todaySales.toFixed(2);
+                document.getElementById('total-products').textContent = totalProducts;
+                document.getElementById('low-stock').textContent = lowStock;
+                document.getElementById('today-transactions').textContent = salesSnapshot.size;
+                
+                console.log('📊 Dashboard stats updated:', { todaySales, totalProducts, lowStock });
+                
+            } catch (error) {
+                console.error('Error loading dashboard stats:', error);
+            }
+        }
+
+        // Real-time listener for sales updates
+        function setupRealTimeListeners() {
+            // Listen for new sales
+            db.collection('sales')
+                .orderBy('created_at', 'desc')
+                .limit(10)
+                .onSnapshot((snapshot) => {
+                    console.log('🔄 Sales updated, refreshing stats...');
+                    loadDashboardStats();
+                });
+
+            // Listen for product stock changes
+            db.collection('products')
+                .onSnapshot((snapshot) => {
+                    console.log('🔄 Products updated, refreshing...');
+                    loadProducts();
+                });
+        }
+
+        // QR Code Functions
+        function generateQRCode() {
+            const productId = document.getElementById('qrProductId').value;
+            const productName = document.getElementById('qrProductName').value;
+            const category = document.getElementById('qrCategory').value;
+            const size = document.getElementById('qrSize').value;
+            const color = document.getElementById('qrColor').value;
+            const price = document.getElementById('qrPrice').value;
+
+            if (!productId || !productName) {
+                showFloatingNotification('Please enter Product ID and Name', 'error');
+                return;
+            }
+
+            const productData = {
+                id: productId,
+                name: productName,
+                category: category,
+                size: size,
+                color: color,
+                price: price
+            };
+
+            const qrContainer = document.getElementById('qrcode');
+            qrContainer.innerHTML = '';
+            
+            QRCode.toCanvas(qrContainer, JSON.stringify(productData), function(error) {
+                if (error) {
+                    console.error('QR Generation error:', error);
+                    showFloatingNotification('Error generating QR code', 'error');
+                    return;
+                }
+                
+                // Update preview
+                document.getElementById('previewId').textContent = productId;
+                document.getElementById('previewName').textContent = productName;
+                document.getElementById('previewCategory').textContent = category || '-';
+                document.getElementById('previewSize').textContent = size || '-';
+                document.getElementById('previewColor').textContent = color || '-';
+                document.getElementById('previewPrice').textContent = price ? '₱' + parseFloat(price).toFixed(2) : '-';
+                
+                showFloatingNotification('✅ QR Code generated successfully!', 'success');
+            });
+        }
+
+        function populateQRProductSelect(products) {
+            const select = document.getElementById('qrProductSelect');
+            select.innerHTML = '<option value="">Select a product...</option>';
+            
+            products.forEach(product => {
+                const option = document.createElement('option');
+                option.value = product.id;
+                option.textContent = `${product.barcode} - ${product.name}`;
+                option.setAttribute('data-product', JSON.stringify(product));
+                select.appendChild(option);
+            });
+        }
+
+        function loadProductForQR() {
+            const select = document.getElementById('qrProductSelect');
+            const selectedOption = select.options[select.selectedIndex];
+            
+            if (selectedOption.value) {
+                const product = JSON.parse(selectedOption.getAttribute('data-product'));
+                
+                document.getElementById('qrProductId').value = product.barcode;
+                document.getElementById('qrProductName').value = product.name;
+                document.getElementById('qrCategory').value = product.category;
+                document.getElementById('qrSize').value = product.size || '';
+                document.getElementById('qrColor').value = product.color || '';
+                document.getElementById('qrPrice').value = product.price || '';
+                
+                generateQRCode();
+            }
+        }
+
+        // Utility Functions
+        function showSection(sectionId) {
+            document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+            
+            document.getElementById(sectionId).classList.add('active');
+            event.target.classList.add('active');
+            
+            const titles = {
+                'dashboard': 'Dashboard',
+                'pos': 'POS System', 
+                'inventory': 'Inventory',
+                'reports': 'Reports'
+            };
+            document.getElementById('page-title').textContent = titles[sectionId] || 'Dashboard';
+            
+            if (sectionId === 'dashboard') {
+                loadDashboardStats();
+            }
+        }
+
+        function showTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+            
+            document.getElementById(tabId).classList.add('active');
+            event.target.classList.add('active');
+        }
+
+        function logout() {
+            localStorage.removeItem('user');
+            window.location.href = 'index.html';
+        }
+
+        function applyDiscount() {
+            showFloatingNotification('Discount feature coming soon!', 'info');
+        }
+
+        // Test Functions
+        async function testFirebase() {
+            try {
+                await db.collection('test').doc('connection').set({
+                    test: true,
+                    timestamp: new Date()
+                });
+                showFloatingNotification('✅ Firebase connection working!', 'success');
+            } catch (error) {
+                showFloatingNotification('❌ Firebase error: ' + error.message, 'error');
+            }
+        }
+
+        async function addSampleProducts() {
+            const sampleProducts = [
+                {
+                    barcode: 'TS001',
+                    name: 'Classic White T-Shirt',
+                    category: 'Tops',
+                    size: 'M',
+                    color: 'White',
+                    price: 299.00,
+                    cost_price: 150.00,
+                    stock_quantity: 50,
+                    min_stock: 5
+                },
+                {
+                    barcode: 'DR001',
+                    name: 'Summer Floral Dress',
+                    category: 'Dresses',
+                    size: 'L',
+                    color: 'Floral',
+                    price: 899.00,
+                    cost_price: 450.00,
+                    stock_quantity: 25,
+                    min_stock: 5
+                },
+                {
+                    barcode: 'JN001',
+                    name: 'Slim Fit Jeans',
+                    category: 'Bottoms',
+                    size: '32',
+                    color: 'Blue',
+                    price: 799.00,
+                    cost_price: 400.00,
+                    stock_quantity: 30,
+                    min_stock: 5
+                }
+            ];
+
+            try {
+                for (const product of sampleProducts) {
+                    await db.collection('products').add({
+                        ...product,
+                        created_at: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                }
+                showFloatingNotification('✅ Sample products added successfully!', 'success');
+                await loadProducts();
+            } catch (error) {
+                showFloatingNotification('❌ Error adding sample products: ' + error.message, 'error');
+            }
+        }
+
+        // Barcode scanner functionality
+        document.getElementById('barcodeInput').addEventListener('input', async function(e) {
+            const barcode = e.target.value.trim();
+            
+            if (barcode.length > 3) {
+                const product = await findProductByBarcode(barcode);
+                if (product) {
+                    addToCart(product);
+                    e.target.value = '';
+                    document.getElementById('product-search-results').style.display = 'none';
+                } else {
+                    // Show search results
+                    const searchResults = allProducts.filter(p => 
+                        p.barcode.includes(barcode) || 
+                        p.name.toLowerCase().includes(barcode.toLowerCase())
+                    );
+                    
+                    showSearchResults(searchResults);
+                }
+            }
+        });
+
+        function showSearchResults(products) {
+            const resultsContainer = document.getElementById('product-search-results');
+            
+            if (products.length === 0) {
+                resultsContainer.style.display = 'none';
+                return;
+            }
+            
+            let html = '';
+            products.forEach(product => {
+                html += `
+                    <div class="cart-item" onclick="selectSearchProduct('${product.id}')" style="cursor: pointer;">
+                        <div>
+                            <strong>${product.name}</strong><br>
+                            <small>${product.barcode} • ₱${product.price.toFixed(2)} • Stock: ${product.stock_quantity}</small>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            resultsContainer.innerHTML = html;
+            resultsContainer.style.display = 'block';
+        }
+
+        function selectSearchProduct(productId) {
+            const product = allProducts.find(p => p.id === productId);
+            if (product) {
+                addToCart(product);
+                document.getElementById('barcodeInput').value = '';
+                document.getElementById('product-search-results').style.display = 'none';
+            }
+        }
+
+        // Print QR Code
+        function printQRCode() {
+            const qrContent = document.getElementById('qrcode').innerHTML;
+            const printContent = document.getElementById('print-content');
+            printContent.innerHTML = qrContent;
+            document.getElementById('printModal').style.display = 'flex';
+        }
+
+        function closePrintModal() {
+            document.getElementById('printModal').style.display = 'none';
+        }
+
+        // Batch QR Generation
+        function generateBatchQR() {
+            const count = parseInt(document.getElementById('batchCount').value) || 1;
+            const batchPreview = document.getElementById('batchPreview');
+            batchPreview.innerHTML = '';
+            
+            for (let i = 1; i <= count; i++) {
+                const productId = `BATCH${i}`;
+                const productName = `Batch Product ${i}`;
+                
+                const qrContainer = document.createElement('div');
+                qrContainer.className = 'batch-qr';
+                qrContainer.innerHTML = `<div class="product-id">${productId}</div>`;
+                
+                QRCode.toCanvas(qrContainer, JSON.stringify({
+                    id: productId,
+                    name: productName
+                }), function(error) {
+                    if (error) console.error('Batch QR error:', error);
+                });
+                
+                batchPreview.appendChild(qrContainer);
+            }
+            
+            showFloatingNotification(`✅ Generated ${count} batch QR codes!`, 'success');
+        }
+    </script>
+</body>
+</html>
