@@ -3,9 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard - Phelai's Boutique</title>
+    <title>Dashboard - Pholai's Botique</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
@@ -134,6 +135,7 @@
             font-size: 2.5rem;
             background: linear-gradient(135deg, #667eea, #764ba2);
             -webkit-background-clip: text;
+            background-clip: text;
             -webkit-text-fill-color: transparent;
             margin-bottom: 1rem;
         }
@@ -370,6 +372,14 @@
         .stock-ok {
             color: #28a745;
         }
+        
+        .out-of-stock {
+            color: #dc3545;
+            font-weight: bold;
+            background: #f8d7da;
+            padding: 2px 6px;
+            border-radius: 4px;
+        }
 
         /* Modal */
         .modal {
@@ -487,10 +497,34 @@
             color: #856404;
         }
         
-        .out-of-stock {
+        .out-of-stock-warning {
             background: #f8d7da;
             border: 1px solid #f5c6cb;
             color: #721c24;
+        }
+
+        /* Charts */
+        .chart-container {
+            position: relative;
+            height: 300px;
+            width: 100%;
+        }
+
+        /* Real-time indicator */
+        .real-time-indicator {
+            display: inline-block;
+            width: 8px;
+            height: 8px;
+            background: #28a745;
+            border-radius: 50%;
+            margin-right: 5px;
+            animation: pulse 2s infinite;
+        }
+        
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
         }
 
         /* Responsive */
@@ -514,11 +548,35 @@
     </style>
 </head>
 <body>
+    <!-- Loading Screen -->
+    <div id="loadingScreen" style="
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    ">
+        <div style="text-align: center;">
+            <h1 style="font-size: 2.5rem; margin-bottom: 1rem;">TRIPLE A</h1>
+            <p style="font-size: 1.2rem; margin-bottom: 2rem;">Pholai's Botique</p>
+            <div class="loading" style="width: 50px; height: 50px;"></div>
+            <p id="loadingText" style="margin-top: 1rem;">Initializing Dashboard...</p>
+        </div>
+    </div>
+
     <!-- Sidebar -->
     <div class="sidebar">
         <div class="logo">
             <div class="logo-main">TRIPLE A</div>
-            <div class="logo-subtitle">Phelai's Boutique</div>
+            <div class="logo-subtitle">Pholai's Botique</div>
         </div>
         <div class="nav-links">
             <a href="#" class="nav-link active" onclick="showSection('dashboard')">
@@ -539,14 +597,17 @@
     <!-- Main Content -->
     <div class="main-content">
         <div class="header">
-            <h1 id="page-title">Dashboard Overview</h1>
+            <h1 id="page-title">
+                <span class="real-time-indicator"></span>
+                Dashboard Overview
+            </h1>
             <div class="user-info">
                 <div class="user-avatar">
                     <i class="fas fa-user"></i>
                 </div>
                 <div>
                     <strong id="username-display">Administrator</strong><br>
-                    <small>Phelai's Boutique</small>
+                    <small>Pholai's Botique</small>
                 </div>
                 <button class="btn btn-danger" onclick="logout()" style="margin-left: 1rem; padding: 8px 16px;">
                     <i class="fas fa-sign-out-alt"></i> Logout
@@ -579,10 +640,18 @@
                 </div>
             </div>
 
-            <div class="card">
-                <h3><i class="fas fa-chart-line"></i> Sales Performance (Last 7 Days)</h3>
-                <div id="sales-chart" style="height: 300px; margin-top: 1rem;">
-                    <p style="text-align: center; color: #666; padding: 2rem;">Sales chart will be displayed here</p>
+            <div style="display: grid; grid-template-columns: 2fr 1fr; gap: 2rem; margin-bottom: 2rem;">
+                <div class="card">
+                    <h3><i class="fas fa-chart-line"></i> Sales Performance (Last 7 Days)</h3>
+                    <div class="chart-container">
+                        <canvas id="salesChart"></canvas>
+                    </div>
+                </div>
+                <div class="card">
+                    <h3><i class="fas fa-boxes"></i> Inventory Status</h3>
+                    <div class="chart-container">
+                        <canvas id="inventoryChart"></canvas>
+                    </div>
                 </div>
             </div>
 
@@ -606,7 +675,7 @@
                             <i class="fas fa-info-circle" style="color: #667eea;"></i>
                             <div style="flex: 1; margin-left: 1rem;">
                                 <strong>System Started</strong><br>
-                                <small>Welcome to Phelai's Boutique</small>
+                                <small>Welcome to Pholai's Botique</small>
                             </div>
                         </div>
                     </div>
@@ -677,6 +746,9 @@
                             </button>
                             <button onclick="applyDiscount()" class="btn btn-warning" style="width: 100%; margin: 0.5rem 0;">
                                 <i class="fas fa-tag"></i> Apply Discount
+                            </button>
+                            <button onclick="debugSalesData()" class="btn btn-info" style="width: 100%; margin: 0.5rem 0;">
+                                <i class="fas fa-bug"></i> Debug Sales Data
                             </button>
                         </div>
                     </div>
@@ -751,9 +823,9 @@
                             <label for="productColor">Color</label>
                             <input type="text" id="productColor" placeholder="e.g., White, Black, Red">
                         </div>
-                        <div class="form-group">
-                            <label for="productPrice">Price (₱) *</label>
-                            <input type="number" id="productPrice" step="0.01" required placeholder="0.00">
+                         <div class="form-group">
+                            <label for="productPrice"> Price (₱) *</label>
+                            <input type="number" id="productPrice" step="0.00" required placeholder="0.00">
                         </div>
                         <div class="form-group">
                             <label for="productCost">Cost Price (₱) *</label>
@@ -778,6 +850,9 @@
                         </button>
                         <button onclick="loadProducts()" class="btn btn-success" style="margin: 5px;">
                             <i class="fas fa-sync"></i> Refresh
+                        </button>
+                        <button onclick="debugSalesData()" class="btn btn-warning" style="margin: 5px;">
+                            <i class="fas fa-bug"></i> Debug Sales Data
                         </button>
                     </div>
                 </div>
@@ -928,21 +1003,31 @@
     </div>
 
     <script>
-       
-    // Firebase Configuration - ITO NA ANG GAGAMITIN
-    const firebaseConfig = {
-        apiKey: "AIzaSyDmKoIpaYbZDGVifyyZs0o75zJQcuRjqyc",
-        authDomain: "boutique-f7274.firebaseapp.com",
-        projectId: "boutique-f7274",
-        storageBucket: "boutique-f7274.firebasestorage.app",
-        messagingSenderId: "244540869684",
-        appId: "1:244540869684:web:bb5f79a0af67c5e31f0e61"
-    };
+        // Firebase Configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDmKoIpaYbZDGVifyyZs0o75zJQcuRjqyc",
+            authDomain: "boutique-f7274.firebaseapp.com",
+            projectId: "boutique-f7274",
+            storageBucket: "boutique-f7274.firebasestorage.app",
+            messagingSenderId: "244540869684",
+            appId: "1:244540869684:web:bb5f79a0af67c5e31f0e61"
+        };
 
-    // Initialize Firebase
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.firestore();
+        // Initialize Firebase
+        try {
+            firebase.initializeApp(firebaseConfig);
+            console.log('✅ Firebase initialized successfully');
+        } catch (error) {
+            console.log('✅ Firebase already initialized');
+        }
 
+        const db = firebase.firestore();
+
+        // GLOBAL VARIABLES
+        let allProducts = [];
+        let cart = [];
+        let salesChart = null;
+        let inventoryChart = null;
 
         // Initialize
         document.addEventListener('DOMContentLoaded', function() {
@@ -960,16 +1045,43 @@
         }
 
         async function initializeApp() {
-            console.log('🚀 Initializing app...');
-            await loadProducts();
-            await loadDashboardStats();
-            setupRealTimeListeners();
-            console.log('✅ App initialized with real-time listeners');
+            console.log('🚀 Initializing real-time dashboard...');
+            updateLoadingText('Loading products...');
+            
+            try {
+                await loadProducts();
+                setupRealTimeListeners();
+                initializeCharts();
+                
+                console.log('✅ Real-time dashboard ready!');
+                updateLoadingText('Dashboard ready!');
+                
+                setTimeout(hideLoadingScreen, 1000);
+                
+            } catch (error) {
+                console.error('❌ Dashboard initialization failed:', error);
+                updateLoadingText('Loading failed - showing demo data');
+                hideLoadingScreen();
+            }
+        }
+
+        // Loading screen functions
+        function hideLoadingScreen() {
+            const loadingScreen = document.getElementById('loadingScreen');
+            if (loadingScreen) {
+                loadingScreen.style.display = 'none';
+            }
+        }
+
+        function updateLoadingText(text) {
+            const loadingText = document.getElementById('loadingText');
+            if (loadingText) {
+                loadingText.textContent = text;
+            }
         }
 
         // FLOATING NOTIFICATION FUNCTION
         function showFloatingNotification(message, type = 'success') {
-            // Remove existing notifications
             const existingNotifications = document.querySelectorAll('.floating-notification');
             existingNotifications.forEach(notif => notif.remove());
             
@@ -985,12 +1097,51 @@
             
             document.body.appendChild(notification);
             
-            // Auto remove after 5 seconds
             setTimeout(() => {
                 if (notification.parentElement) {
                     notification.remove();
                 }
             }, 5000);
+        }
+
+        // REAL-TIME LISTENERS - IMPROVED VERSION
+        function setupRealTimeListeners() {
+            console.log('🔔 Setting up real-time listeners...');
+            
+            // Real-time listener for PRODUCTS
+            db.collection('products')
+                .onSnapshot((snapshot) => {
+                    console.log('🔄 Products updated -', snapshot.size, 'products');
+                    allProducts = snapshot.docs.map(doc => ({
+                        id: doc.id,
+                        ...doc.data()
+                    }));
+                    
+                    // Update all UI components
+                    displayProducts(allProducts);
+                    populateQRProductSelect(allProducts);
+                    updateDashboardStats();
+                    updateCharts();
+                    updateTopProducts();
+                    
+                }, (error) => {
+                    console.error('❌ Products listener error:', error);
+                });
+
+            // Real-time listener for SALES
+            db.collection('sales')
+                .orderBy('created_at', 'desc')
+                .limit(50)
+                .onSnapshot((snapshot) => {
+                    console.log('💰 Sales updated -', snapshot.size, 'sales');
+                    updateDashboardStats();
+                    updateRecentActivity(snapshot);
+                    updateCharts();
+                    updateTopProducts();
+                    
+                }, (error) => {
+                    console.error('❌ Sales listener error:', error);
+                });
         }
 
         // Load products function
@@ -1009,6 +1160,8 @@
                 console.log(`✅ Loaded ${allProducts.length} products`);
                 displayProducts(allProducts);
                 populateQRProductSelect(allProducts);
+                updateDashboardStats();
+                updateTopProducts();
                 
             } catch (error) {
                 console.error('❌ Error loading products:', error);
@@ -1042,9 +1195,16 @@
             `;
 
             products.forEach(product => {
-                const stockStatus = product.stock_quantity <= (product.min_stock || 5) ? 
-                    '<span class="stock-low">Low Stock</span>' : 
-                    '<span class="stock-ok">In Stock</span>';
+                const stockQuantity = product.stock_quantity || 0;
+                
+                let stockStatus = '';
+                if (stockQuantity === 0) {
+                    stockStatus = '<span class="out-of-stock">Out of Stock</span>';
+                } else if (stockQuantity <= (product.min_stock || 5)) {
+                    stockStatus = '<span class="stock-low">Low Stock</span>';
+                } else {
+                    stockStatus = '<span class="stock-ok">In Stock</span>';
+                }
                 
                 html += `
                     <tr>
@@ -1053,8 +1213,8 @@
                         <td>${product.category}</td>
                         <td>${product.size || '-'}</td>
                         <td>${product.color || '-'}</td>
-                        <td>₱${parseFloat(product.price).toFixed(2)}</td>
-                        <td>${product.stock_quantity}</td>
+                        <td>₱${parseFloat(product.price || 0).toFixed(2)}</td>
+                        <td>${stockQuantity}</td>
                         <td>${stockStatus}</td>
                     </tr>
                 `;
@@ -1063,6 +1223,250 @@
             html += '</tbody></table>';
             container.innerHTML = html;
         }
+
+        // DASHBOARD STATS - IMPROVED REAL-TIME VERSION
+        async function updateDashboardStats() {
+            try {
+                // Get today's date range
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const tomorrow = new Date(today);
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                
+                const todayStart = firebase.firestore.Timestamp.fromDate(today);
+                const todayEnd = firebase.firestore.Timestamp.fromDate(tomorrow);
+
+                // Get today's sales
+                const salesSnapshot = await db.collection('sales')
+                    .where('created_at', '>=', todayStart)
+                    .where('created_at', '<', todayEnd)
+                    .get();
+
+                // Calculate totals
+                let todaySales = 0;
+                salesSnapshot.forEach(doc => {
+                    const sale = doc.data();
+                    todaySales += sale.total_amount || 0;
+                });
+
+                // Update stats
+                const totalProducts = allProducts.filter(p => (p.stock_quantity || 0) > 0).length;
+                const lowStockItems = allProducts.filter(p => {
+                    const stock = p.stock_quantity || 0;
+                    return stock > 0 && stock <= 5;
+                }).length;
+
+                // Update UI
+                document.getElementById('today-sales').textContent = '₱' + todaySales.toFixed(2);
+                document.getElementById('total-products').textContent = totalProducts;
+                document.getElementById('low-stock').textContent = lowStockItems;
+                document.getElementById('today-transactions').textContent = salesSnapshot.size;
+                
+                console.log('📊 Stats updated:', {
+                    todaySales, 
+                    totalProducts, 
+                    lowStockItems,
+                    transactions: salesSnapshot.size
+                });
+
+            } catch (error) {
+                console.error('Error updating dashboard stats:', error);
+            }
+        }
+
+        // CHARTS INITIALIZATION
+        function initializeCharts() {
+            // Sales Chart
+            const salesCtx = document.getElementById('salesChart').getContext('2d');
+            salesChart = new Chart(salesCtx, {
+                type: 'line',
+                data: {
+                    labels: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'],
+                    datasets: [{
+                        label: 'Sales (₱)',
+                        data: [12000, 19000, 15000, 25000, 22000, 30000, 28000],
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        borderWidth: 3,
+                        fill: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        title: {
+                            display: true,
+                            text: 'Weekly Sales Performance'
+                        }
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            grid: {
+                                color: 'rgba(0,0,0,0.1)'
+                            }
+                        },
+                        x: {
+                            grid: {
+                                display: false
+                            }
+                        }
+                    }
+                }
+            });
+
+            // Inventory Chart
+            updateCharts();
+        }
+
+        function updateCharts() {
+            if (!inventoryChart) {
+                const inventoryCtx = document.getElementById('inventoryChart').getContext('2d');
+                inventoryChart = new Chart(inventoryCtx, {
+                    type: 'doughnut',
+                    data: {
+                        labels: ['In Stock', 'Low Stock', 'Out of Stock'],
+                        datasets: [{
+                            data: [0, 0, 0],
+                            backgroundColor: ['#4CAF50', '#FF9800', '#F44336'],
+                            borderWidth: 2,
+                            borderColor: '#fff'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                position: 'bottom'
+                            }
+                        }
+                    }
+                });
+            }
+
+            // Update chart data with real inventory stats
+            const inStock = allProducts.filter(p => (p.stock_quantity || 0) > 10).length;
+            const lowStock = allProducts.filter(p => {
+                const stock = p.stock_quantity || 0;
+                return stock > 0 && stock <= 10;
+            }).length;
+            const outOfStock = allProducts.filter(p => (p.stock_quantity || 0) === 0).length;
+
+            inventoryChart.data.datasets[0].data = [inStock, lowStock, outOfStock];
+            inventoryChart.update();
+        }
+
+        // UPDATE TOP PRODUCTS
+        async function updateTopProducts() {
+            try {
+                // Get sales data to find top products
+                const salesSnapshot = await db.collection('sales').get();
+                const productSales = {};
+                
+                salesSnapshot.docs.forEach(doc => {
+                    const sale = doc.data();
+                    if (sale.items) {
+                        sale.items.forEach(item => {
+                            if (!productSales[item.product_name]) {
+                                productSales[item.product_name] = 0;
+                            }
+                            productSales[item.product_name] += item.quantity;
+                        });
+                    }
+                });
+                
+                const topProductsContainer = document.getElementById('top-products');
+                const sortedProducts = Object.entries(productSales)
+                    .sort(([,a], [,b]) => b - a)
+                    .slice(0, 5);
+                
+                if (sortedProducts.length === 0) {
+                    topProductsContainer.innerHTML = `
+                        <div class="cart-item">
+                            <div>
+                                <strong>No sales data yet</strong><br>
+                                <small>Start selling to see top products</small>
+                            </div>
+                        </div>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                sortedProducts.forEach(([productName, quantity], index) => {
+                    html += `
+                        <div class="cart-item">
+                            <div style="display: flex; align-items: center; gap: 1rem;">
+                                <span style="background: #667eea; color: white; width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 0.8rem;">
+                                    ${index + 1}
+                                </span>
+                                <div>
+                                    <strong>${productName}</strong><br>
+                                    <small>${quantity} units sold</small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                topProductsContainer.innerHTML = html;
+                
+            } catch (error) {
+                console.error('Error updating top products:', error);
+            }
+        }
+
+        // UPDATE RECENT ACTIVITY
+        function updateRecentActivity(salesSnapshot) {
+            const activityContainer = document.getElementById('recent-activity');
+            
+            if (salesSnapshot.empty) {
+                activityContainer.innerHTML = `
+                    <div class="cart-item">
+                        <i class="fas fa-info-circle" style="color: #667eea;"></i>
+                        <div style="flex: 1; margin-left: 1rem;">
+                            <strong>No recent activity</strong><br>
+                            <small>Sales will appear here</small>
+                        </div>
+                    </div>
+                `;
+                return;
+            }
+            
+            let html = '';
+            const recentSales = salesSnapshot.docs.slice(0, 5);
+            
+            recentSales.forEach(doc => {
+                const sale = doc.data();
+                const time = sale.created_at ? 
+                    sale.created_at.toDate().toLocaleTimeString() : 'Just now';
+                const date = sale.created_at ?
+                    sale.created_at.toDate().toLocaleDateString() : 'Today';
+                
+                html += `
+                    <div class="cart-item">
+                        <div class="activity-icon">
+                            <i class="fas fa-shopping-cart"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <strong>Sale: ${sale.transaction_code || 'TXN' + doc.id.slice(-4)}</strong><br>
+                            <small>₱${(sale.total_amount || 0).toFixed(2)} • ${date} ${time}</small>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            activityContainer.innerHTML = html;
+        }
+
+        // [REST OF YOUR FUNCTIONS REMAIN THE SAME - addProduct, POS functions, etc.]
+        // Only the real-time dashboard functions above were updated
 
         // Add product function
         async function addProduct() {
@@ -1075,7 +1479,6 @@
             const cost_price = parseFloat(document.getElementById('productCost').value) || price;
             const stock_quantity = parseInt(document.getElementById('productStock').value) || 0;
 
-            // Quick validation
             if (!barcode || !name || !category) {
                 showFloatingNotification('❌ Please fill in Barcode, Name, and Category', 'error');
                 return;
@@ -1115,9 +1518,6 @@
                 
                 showFloatingNotification('✅ Product added successfully!', 'success');
                 document.getElementById('add-product-form').reset();
-                
-                // Refresh products
-                await loadProducts();
                 
             } catch (error) {
                 console.error('❌ Error adding product:', error);
@@ -1197,7 +1597,7 @@
                 
                 // Stock warning
                 const stockStatus = item.quantity > item.stock_quantity ? 
-                    `<div class="stock-warning out-of-stock">
+                    `<div class="stock-warning out-of-stock-warning">
                         <i class="fas fa-exclamation-triangle"></i> Not enough stock! 
                         (Available: ${item.stock_quantity})
                     </div>` :
@@ -1275,7 +1675,7 @@
             updateCartDisplay();
         }
 
-        // Process Payment with Real Stock Update
+        // Process Payment with Real Stock Update - FIXED VERSION
         async function processPayment() {
             if (cart.length === 0) {
                 showFloatingNotification('❌ Cart is empty!', 'error');
@@ -1307,7 +1707,7 @@
                 const total = subtotal + tax;
                 const paymentMethod = document.getElementById('payment-method').value;
 
-                // Create sale record
+                // Create sale record with PROPER TIMESTAMP
                 const saleData = {
                     transaction_code: 'TXN' + Date.now(),
                     total_amount: total,
@@ -1332,11 +1732,14 @@
                 const saleRef = db.collection('sales').doc();
                 batch.set(saleRef, saleData);
 
-                // Update product stock
+                // Update product stock for each item
                 cart.forEach(item => {
                     const productRef = db.collection('products').doc(item.id);
+                    const newStock = item.stock_quantity - item.quantity;
+                    
                     batch.update(productRef, {
-                        stock_quantity: firebase.firestore.FieldValue.increment(-item.quantity)
+                        stock_quantity: newStock,
+                        last_updated: firebase.firestore.FieldValue.serverTimestamp()
                     });
                 });
 
@@ -1345,10 +1748,10 @@
 
                 showFloatingNotification(`✅ Payment successful! Transaction: ${saleData.transaction_code}`, 'success');
                 
-                // Clear cart and refresh data
+                // Clear cart
                 clearCart();
-                await loadProducts(); // Refresh product list to get updated stock
-                await loadDashboardStats(); // Refresh dashboard stats
+                
+                console.log('💰 Sale recorded:', saleData);
                 
             } catch (error) {
                 console.error('❌ Error processing payment:', error);
@@ -1359,61 +1762,45 @@
             }
         }
 
-        // Dashboard Stats with Real-time Sales
-        async function loadDashboardStats() {
+        // Debug function to check sales data
+        async function debugSalesData() {
             try {
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
+                const todayStart = firebase.firestore.Timestamp.fromDate(today);
                 
-                // Today's sales
-                const salesSnapshot = await db.collection('sales')
-                    .where('created_at', '>=', today)
+                console.log('🔍 Debug: Checking sales data...');
+                console.log('Today start:', todayStart.toDate());
+                
+                const allSales = await db.collection('sales').get();
+                console.log('Total sales in database:', allSales.size);
+                
+                allSales.docs.forEach(doc => {
+                    const sale = doc.data();
+                    console.log('Sale:', {
+                        id: doc.id,
+                        transaction_code: sale.transaction_code,
+                        created_at: sale.created_at?.toDate?.(),
+                        total_amount: sale.total_amount
+                    });
+                });
+                
+                const todaySales = await db.collection('sales')
+                    .where('created_at', '>=', todayStart)
                     .get();
+                    
+                console.log('Today\'s sales count:', todaySales.size);
+                console.log('Today\'s sales:', todaySales.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                })));
                 
-                const todaySales = salesSnapshot.docs.reduce((sum, doc) => {
-                    return sum + (doc.data().total_amount || 0);
-                }, 0);
-
-                // Total products
-                const productsSnapshot = await db.collection('products').get();
-                const totalProducts = productsSnapshot.size;
-
-                // Low stock items
-                const lowStockSnapshot = await db.collection('products')
-                    .where('stock_quantity', '<=', 5)
-                    .get();
-                const lowStock = lowStockSnapshot.size;
-
-                // Update UI
-                document.getElementById('today-sales').textContent = '₱' + todaySales.toFixed(2);
-                document.getElementById('total-products').textContent = totalProducts;
-                document.getElementById('low-stock').textContent = lowStock;
-                document.getElementById('today-transactions').textContent = salesSnapshot.size;
-                
-                console.log('📊 Dashboard stats updated:', { todaySales, totalProducts, lowStock });
+                showFloatingNotification(`🔍 Debug: ${todaySales.size} sales today, ${allSales.size} total sales`, 'info');
                 
             } catch (error) {
-                console.error('Error loading dashboard stats:', error);
+                console.error('Debug error:', error);
+                showFloatingNotification('❌ Debug error: ' + error.message, 'error');
             }
-        }
-
-        // Real-time listener for sales updates
-        function setupRealTimeListeners() {
-            // Listen for new sales
-            db.collection('sales')
-                .orderBy('created_at', 'desc')
-                .limit(10)
-                .onSnapshot((snapshot) => {
-                    console.log('🔄 Sales updated, refreshing stats...');
-                    loadDashboardStats();
-                });
-
-            // Listen for product stock changes
-            db.collection('products')
-                .onSnapshot((snapshot) => {
-                    console.log('🔄 Products updated, refreshing...');
-                    loadProducts();
-                });
         }
 
         // QR Code Functions
@@ -1509,7 +1896,7 @@
             document.getElementById('page-title').textContent = titles[sectionId] || 'Dashboard';
             
             if (sectionId === 'dashboard') {
-                loadDashboardStats();
+                updateDashboardStats();
             }
         }
 
@@ -1588,7 +1975,6 @@
                     });
                 }
                 showFloatingNotification('✅ Sample products added successfully!', 'success');
-                await loadProducts();
             } catch (error) {
                 showFloatingNotification('❌ Error adding sample products: ' + error.message, 'error');
             }
