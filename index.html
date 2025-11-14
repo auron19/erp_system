@@ -3,8 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Phelai's Boutique - Login</title>
+    <title>Pholai's Botique - Login</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <!-- Include CryptoJS for password hashing -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -23,6 +25,7 @@
             width: 90%;
             max-width: 450px;
             text-align: center;
+            position: relative;
         }
         .logo { 
             margin-bottom: 2rem;
@@ -82,10 +85,92 @@
             transform: translateY(-2px);
             box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
+        .btn:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
         .footer {
             margin-top: 2rem;
             color: #666;
             font-size: 0.8rem;
+        }
+        .attempts-warning {
+            color: #dc3545;
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            display: none;
+        }
+        .security-notice {
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            padding: 10px;
+            margin-bottom: 1rem;
+            font-size: 0.8rem;
+            color: #856404;
+        }
+
+        /* Floating Notification Styles for Login Page */
+        .floating-notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #28a745;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideInRight 0.3s ease-out;
+            max-width: 400px;
+        }
+        
+        .floating-notification.error {
+            background: #dc3545;
+        }
+        
+        .floating-notification.warning {
+            background: #ffc107;
+            color: #000;
+        }
+        
+        .floating-notification.info {
+            background: #17a2b8;
+        }
+        
+        .notification-close {
+            background: none;
+            border: none;
+            color: inherit;
+            cursor: pointer;
+            font-size: 1.2rem;
+            margin-left: auto;
+        }
+        
+        @keyframes slideInRight {
+            from {
+                transform: translateX(100%);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        .shake {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
         }
     </style>
 </head>
@@ -93,8 +178,12 @@
     <div class="login-container">
         <div class="logo">
             <div class="logo-main">TRIPLE A</div>
-            <div class="logo-subtitle">Phelai's Boutique</div>
+            <div class="logo-subtitle">Pholai's Botique</div>
             <div class="tagline">Fashion Retail Management System</div>
+        </div>
+        
+        <div class="security-notice">
+            <i class="fas fa-shield-alt"></i> Secure Login System
         </div>
         
         <form id="loginForm">
@@ -105,28 +194,223 @@
             <div class="form-group">
                 <label for="password"><i class="fas fa-lock"></i> Password</label>
                 <input type="password" id="password" placeholder="Enter your password" required>
+                <div class="attempts-warning" id="attemptsWarning">
+                    <i class="fas fa-exclamation-triangle"></i> 
+                    <span id="attemptsCount">3</span> attempts remaining
+                </div>
             </div>
-            <button type="submit" class="btn">
+            <button type="submit" class="btn" id="loginBtn">
                 <i class="fas fa-sign-in-alt"></i> Login to System
             </button>
         </form>
         
         <div class="footer">
-            <p>© 2024 Phelai's Boutique. All rights reserved.</p>
+            <p>© 2024 Pholai's Botique. All rights reserved.</p>
+            <p style="font-size: 0.7rem; margin-top: 0.5rem;">
+                <i class="fas fa-clock"></i> Session timeout: 30 minutes
+            </p>
         </div>
     </div>
 
     <script>
+        // Security Configuration
+        const SECURITY_CONFIG = {
+            maxLoginAttempts: 5,
+            lockoutTime: 15 * 60 * 1000, // 15 minutes
+            sessionTimeout: 30 * 60 * 1000 // 30 minutes
+        };
+
+        // Secure user database with hashed passwords
+        const secureUsers = {
+            'admin': {
+                passwordHash: CryptoJS.SHA256('admin123' + 'pholai_salt_2024').toString(),
+                role: 'administrator',
+                fullName: 'System Administrator'
+            },
+            'cashier': {
+                passwordHash: CryptoJS.SHA256('cashier123' + 'pholai_salt_2024').toString(),
+                role: 'cashier', 
+                fullName: 'Cashier User'
+            }
+        };
+
+        let loginAttempts = 0;
+        let lockoutUntil = 0;
+
         document.getElementById('loginForm').addEventListener('submit', function(e) {
             e.preventDefault();
-            const username = document.getElementById('username').value;
-            const password = document.getElementById('password').value;
+            handleLogin();
+        });
+
+        // Floating Notification Function for Login Page
+        function showFloatingNotification(message, type = 'success') {
+            const existingNotifications = document.querySelectorAll('.floating-notification');
+            existingNotifications.forEach(notif => notif.remove());
             
-            if(username === 'admin' && password === 'admin123') {
-                localStorage.setItem('user', 'admin');
-                window.location.href = 'dashboard.html';
+            const notification = document.createElement('div');
+            notification.className = `floating-notification ${type}`;
+            notification.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check' : type === 'error' ? 'exclamation-triangle' : 'info'}"></i>
+                <span>${message}</span>
+                <button class="notification-close" onclick="this.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    notification.remove();
+                }
+            }, 5000);
+        }
+
+        function handleLogin() {
+            // Check if account is locked
+            if (Date.now() < lockoutUntil) {
+                const remainingTime = Math.ceil((lockoutUntil - Date.now()) / 60000);
+                showFloatingNotification(`Account temporarily locked. Try again in ${remainingTime} minutes.`, 'error');
+                return;
+            }
+
+            const username = document.getElementById('username').value.trim();
+            const password = document.getElementById('password').value;
+            const loginBtn = document.getElementById('loginBtn');
+            const attemptsWarning = document.getElementById('attemptsWarning');
+            const attemptsCount = document.getElementById('attemptsCount');
+
+            // Input sanitization
+            const sanitizedUsername = sanitizeInput(username);
+            
+            if (!sanitizedUsername || !password) {
+                showFloatingNotification('Please enter both username and password', 'error');
+                return;
+            }
+
+            // Disable button during processing
+            loginBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Authenticating...';
+            loginBtn.disabled = true;
+
+            setTimeout(() => {
+                // Verify credentials
+                const user = secureUsers[sanitizedUsername];
+                const passwordHash = CryptoJS.SHA256(password + 'pholai_salt_2024').toString();
+                
+                if (user && user.passwordHash === passwordHash) {
+                    // Successful login
+                    loginAttempts = 0;
+                    attemptsWarning.style.display = 'none';
+                    
+                    // Store secure session data
+                    const sessionData = {
+                        username: sanitizedUsername,
+                        role: user.role,
+                        fullName: user.fullName,
+                        loginTime: Date.now(),
+                        sessionId: generateSessionId()
+                    };
+                    
+                    localStorage.setItem('user', JSON.stringify(sessionData));
+                    localStorage.setItem('loginTime', Date.now().toString());
+                    
+                    // Log security event
+                    logSecurityEvent('SUCCESSFUL_LOGIN', { username: sanitizedUsername });
+                    
+                    // Show success message
+                    showFloatingNotification('✅ Login successful! Redirecting...', 'success');
+                    
+                    // Redirect to dashboard after short delay
+                    setTimeout(() => {
+                        window.location.href = 'dashboard.html';
+                    }, 1000);
+                    
+                } else {
+                    // Failed login
+                    loginAttempts++;
+                    const remainingAttempts = SECURITY_CONFIG.maxLoginAttempts - loginAttempts;
+                    
+                    // Add shake animation to form
+                    document.getElementById('loginForm').classList.add('shake');
+                    setTimeout(() => {
+                        document.getElementById('loginForm').classList.remove('shake');
+                    }, 500);
+                    
+                    if (remainingAttempts > 0) {
+                        attemptsCount.textContent = remainingAttempts;
+                        attemptsWarning.style.display = 'block';
+                        showFloatingNotification(`❌ Invalid credentials! ${remainingAttempts} attempts remaining.`, 'error');
+                    } else {
+                        // Lock account
+                        lockoutUntil = Date.now() + SECURITY_CONFIG.lockoutTime;
+                        attemptsWarning.style.display = 'none';
+                        showFloatingNotification('🔒 Too many failed attempts. Account locked for 15 minutes.', 'error');
+                    }
+                    
+                    // Clear password field
+                    document.getElementById('password').value = '';
+                    
+                    // Log security event
+                    logSecurityEvent('FAILED_LOGIN', { 
+                        username: sanitizedUsername,
+                        attempt: loginAttempts 
+                    });
+                }
+                
+                // Re-enable button
+                loginBtn.innerHTML = '<i class="fas fa-sign-in-alt"></i> Login to System';
+                loginBtn.disabled = false;
+                
+            }, 1000); // Simulate authentication delay
+        }
+
+        function sanitizeInput(input) {
+            return input.replace(/[<>&"']/g, '');
+        }
+
+        function generateSessionId() {
+            return 'session_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        }
+
+        function logSecurityEvent(event, details) {
+            // In a real system, this would send to a security log server
+            console.log('🔒 Security Event:', event, details);
+            
+            // Store in localStorage for demo purposes
+            const logs = JSON.parse(localStorage.getItem('securityLogs') || '[]');
+            logs.push({
+                event,
+                details,
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent
+            });
+            localStorage.setItem('securityLogs', JSON.stringify(logs.slice(-100))); // Keep last 100 logs
+        }
+
+        // Check for existing lockout on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedLockout = localStorage.getItem('lockoutUntil');
+            if (savedLockout && Date.now() < parseInt(savedLockout)) {
+                lockoutUntil = parseInt(savedLockout);
+                const remainingTime = Math.ceil((lockoutUntil - Date.now()) / 60000);
+                showFloatingNotification(`Account locked. Try again in ${remainingTime} minutes.`, 'warning');
             } else {
-                alert('Invalid login credentials! Try: admin / admin123');
+                localStorage.removeItem('lockoutUntil');
+            }
+            
+            // Save lockout time when needed
+            if (lockoutUntil > 0) {
+                localStorage.setItem('lockoutUntil', lockoutUntil.toString());
+            }
+
+            // Auto-focus on username field
+            document.getElementById('username').focus();
+        });
+
+        // Enter key to submit form
+        document.getElementById('password').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                handleLogin();
             }
         });
     </script>
