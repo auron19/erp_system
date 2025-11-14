@@ -1183,10 +1183,101 @@
             <div id="reports" class="section">
                 <div class="card">
                     <div class="card-header">
-                        <h2 class="card-title"><i class="fas fa-chart-line"></i> Sales Reports</h2>
+                        <h2 class="card-title"><i class="fas fa-chart-line"></i> Sales Reports & Analytics</h2>
                     </div>
+                    
+                    <!-- Report Filters -->
+                    <div class="card" style="margin-bottom: 1.5rem;">
+                        <div class="card-header">
+                            <h3 class="card-title"><i class="fas fa-filter"></i> Report Filters</h3>
+                        </div>
+                        <div class="grid-2">
+                            <div class="form-group">
+                                <label for="reportPeriod">Report Period</label>
+                                <select id="reportPeriod" class="form-control" onchange="updateReportFilters()">
+                                    <option value="today">Today</option>
+                                    <option value="yesterday">Yesterday</option>
+                                    <option value="week">This Week</option>
+                                    <option value="month">This Month</option>
+                                    <option value="quarter">This Quarter</option>
+                                    <option value="year">This Year</option>
+                                    <option value="custom">Custom Range</option>
+                                </select>
+                            </div>
+                            <div class="form-group">
+                                <label for="reportType">Report Type</label>
+                                <select id="reportType" class="form-control" onchange="loadSalesReport()">
+                                    <option value="summary">Sales Summary</option>
+                                    <option value="detailed">Detailed Transactions</option>
+                                    <option value="product">Product Performance</option>
+                                    <option value="category">Category Analysis</option>
+                                    <option value="payment">Payment Method Analysis</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Custom Date Range (Hidden by Default) -->
+                        <div id="customDateRange" style="display: none; margin-top: 1rem;">
+                            <div class="grid-2">
+                                <div class="form-group">
+                                    <label for="startDate">Start Date</label>
+                                    <input type="date" id="startDate" class="form-control">
+                                </div>
+                                <div class="form-group">
+                                    <label for="endDate">End Date</label>
+                                    <input type="date" id="endDate" class="form-control">
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; gap: 0.5rem; margin-top: 1rem;">
+                            <button class="btn" onclick="loadSalesReport()">
+                                <i class="fas fa-sync"></i> Generate Report
+                            </button>
+                            <button class="btn btn-success" onclick="exportReport()">
+                                <i class="fas fa-download"></i> Export Report
+                            </button>
+                            <button class="btn btn-info" onclick="printReport()">
+                                <i class="fas fa-print"></i> Print Report
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Report Summary Cards -->
+                    <div class="stats-grid" id="report-summary" style="display: none;">
+                        <div class="stat-card">
+                            <i class="fas fa-money-bill-wave"></i>
+                            <h3>TOTAL SALES</h3>
+                            <p id="total-sales-amount">₱0.00</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-receipt"></i>
+                            <h3>TOTAL TRANSACTIONS</h3>
+                            <p id="total-transactions-count">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-cube"></i>
+                            <h3>ITEMS SOLD</h3>
+                            <p id="total-items-sold">0</p>
+                        </div>
+                        <div class="stat-card">
+                            <i class="fas fa-percentage"></i>
+                            <h3>AVERAGE SALE</h3>
+                            <p id="average-sale-amount">₱0.00</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Report Content -->
                     <div id="reports-content">
-                        <p>Sales reports and analytics will be displayed here.</p>
+                        <div class="card">
+                            <div class="card-header">
+                                <h3 class="card-title"><i class="fas fa-chart-bar"></i> Sales Overview</h3>
+                            </div>
+                            <div style="padding: 2rem; text-align: center; color: var(--gray);">
+                                <i class="fas fa-chart-line" style="font-size: 3rem; margin-bottom: 1rem;"></i>
+                                <p>Select report filters and click "Generate Report" to view sales data</p>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1203,6 +1294,20 @@
             <div id="print-content"></div>
             <button class="btn" onclick="window.print()" style="width: 100%; margin-top: 1rem;">
                 <i class="fas fa-print"></i> Print
+            </button>
+        </div>
+    </div>
+
+    <!-- Print Modal for Reports -->
+    <div id="reportPrintModal" class="modal">
+        <div class="modal-content" style="max-width: 800px;">
+            <div class="modal-header">
+                <h3>Print Sales Report</h3>
+                <button class="close-modal" onclick="closeReportPrintModal()">&times;</button>
+            </div>
+            <div id="report-print-content"></div>
+            <button class="btn" onclick="window.print()" style="width: 100%; margin-top: 1rem;">
+                <i class="fas fa-print"></i> Print Report
             </button>
         </div>
     </div>
@@ -1244,6 +1349,11 @@
     let cart = [];
     let salesChart = null;
     let inventoryChart = null;
+
+    // Sales Report Variables
+    let salesData = [];
+    let currentReportType = 'summary';
+    let currentReportPeriod = 'today';
 
     // === WORKING QR SCANNER FUNCTIONS ===
 
@@ -1662,6 +1772,7 @@
             await loadProducts();
             setupRealTimeListeners();
             initializeCharts();
+            initializeReports(); // Initialize reports system
             
             console.log('✅ Secure dashboard ready!');
             updateLoadingText('Dashboard ready!');
@@ -2585,6 +2696,872 @@
         }
     }
 
+    // SALES REPORT FUNCTIONS
+    function initializeReports() {
+        // Set default dates
+        const today = new Date();
+        document.getElementById('endDate').value = today.toISOString().split('T')[0];
+        
+        const weekAgo = new Date();
+        weekAgo.setDate(today.getDate() - 7);
+        document.getElementById('startDate').value = weekAgo.toISOString().split('T')[0];
+        
+        // Load initial report
+        loadSalesReport();
+    }
+
+    function updateReportFilters() {
+        const period = document.getElementById('reportPeriod').value;
+        const customRange = document.getElementById('customDateRange');
+        
+        if (period === 'custom') {
+            customRange.style.display = 'block';
+        } else {
+            customRange.style.display = 'none';
+        }
+        
+        currentReportPeriod = period;
+    }
+
+    async function loadSalesReport() {
+        const reportType = document.getElementById('reportType').value;
+        const period = document.getElementById('reportPeriod').value;
+        
+        currentReportType = reportType;
+        currentReportPeriod = period;
+        
+        // Show loading state
+        document.getElementById('reports-content').innerHTML = `
+            <div class="card">
+                <div style="padding: 3rem; text-align: center;">
+                    <div class="loading" style="width: 40px; height: 40px; margin: 0 auto 1rem;"></div>
+                    <p>Loading sales data...</p>
+                </div>
+            </div>
+        `;
+        
+        try {
+            // Get date range
+            const dateRange = getDateRange(period);
+            
+            // Fetch sales data
+            let query = db.collection('sales').orderBy('created_at', 'desc');
+            
+            if (dateRange.start && dateRange.end) {
+                query = query.where('created_at', '>=', dateRange.start)
+                            .where('created_at', '<=', dateRange.end);
+            }
+            
+            const snapshot = await query.get();
+            salesData = snapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            
+            // Update summary cards
+            updateReportSummary(salesData);
+            
+            // Load specific report type
+            switch(reportType) {
+                case 'summary':
+                    loadSummaryReport(salesData);
+                    break;
+                case 'detailed':
+                    loadDetailedReport(salesData);
+                    break;
+                case 'product':
+                    loadProductReport(salesData);
+                    break;
+                case 'category':
+                    loadCategoryReport(salesData);
+                    break;
+                case 'payment':
+                    loadPaymentReport(salesData);
+                    break;
+            }
+            
+        } catch (error) {
+            console.error('Error loading sales report:', error);
+            showFloatingNotification('Error loading sales report: ' + error.message, 'error');
+            
+            document.getElementById('reports-content').innerHTML = `
+                <div class="card">
+                    <div style="padding: 2rem; text-align: center; color: var(--danger);">
+                        <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 1rem;"></i>
+                        <p>Failed to load sales data</p>
+                        <small>${error.message}</small>
+                    </div>
+                </div>
+            `;
+        }
+    }
+
+    function getDateRange(period) {
+        const now = new Date();
+        let start, end;
+        
+        switch(period) {
+            case 'today':
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+                break;
+            case 'yesterday':
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1);
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+                break;
+            case 'week':
+                start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay());
+                end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - now.getDay() + 7);
+                break;
+            case 'month':
+                start = new Date(now.getFullYear(), now.getMonth(), 1);
+                end = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+                break;
+            case 'quarter':
+                const quarter = Math.floor(now.getMonth() / 3);
+                start = new Date(now.getFullYear(), quarter * 3, 1);
+                end = new Date(now.getFullYear(), (quarter + 1) * 3, 1);
+                break;
+            case 'year':
+                start = new Date(now.getFullYear(), 0, 1);
+                end = new Date(now.getFullYear() + 1, 0, 1);
+                break;
+            case 'custom':
+                const startDate = document.getElementById('startDate').value;
+                const endDate = document.getElementById('endDate').value;
+                start = startDate ? new Date(startDate) : null;
+                end = endDate ? new Date(endDate + 'T23:59:59') : null;
+                break;
+        }
+        
+        return {
+            start: start ? firebase.firestore.Timestamp.fromDate(start) : null,
+            end: end ? firebase.firestore.Timestamp.fromDate(end) : null
+        };
+    }
+
+    function updateReportSummary(sales) {
+        const totalSales = sales.reduce((sum, sale) => sum + (sale.total_amount || 0), 0);
+        const totalTransactions = sales.length;
+        const totalItems = sales.reduce((sum, sale) => 
+            sum + (sale.items ? sale.items.reduce((itemSum, item) => itemSum + item.quantity, 0) : 0), 0);
+        const averageSale = totalTransactions > 0 ? totalSales / totalTransactions : 0;
+        
+        document.getElementById('total-sales-amount').textContent = '₱' + totalSales.toFixed(2);
+        document.getElementById('total-transactions-count').textContent = totalTransactions;
+        document.getElementById('total-items-sold').textContent = totalItems;
+        document.getElementById('average-sale-amount').textContent = '₱' + averageSale.toFixed(2);
+        
+        // Show summary cards
+        document.getElementById('report-summary').style.display = 'grid';
+    }
+
+    function loadSummaryReport(sales) {
+        const periodText = getPeriodText(currentReportPeriod);
+        
+        let html = `
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-chart-pie"></i> Sales Summary - ${periodText}</h3>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="salesTrendChart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="paymentMethodChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-clock"></i> Hourly Sales Performance</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="hourlySalesChart"></canvas>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('reports-content').innerHTML = html;
+        
+        // Initialize charts
+        renderSalesTrendChart(sales);
+        renderPaymentMethodChart(sales);
+        renderHourlySalesChart(sales);
+    }
+
+    function loadDetailedReport(sales) {
+        const periodText = getPeriodText(currentReportPeriod);
+        
+        let html = `
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-list"></i> Detailed Transactions - ${periodText}</h3>
+                    <span>${sales.length} transactions found</span>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Transaction ID</th>
+                                <th>Date & Time</th>
+                                <th>Items</th>
+                                <th>Quantity</th>
+                                <th>Payment Method</th>
+                                <th>Cashier</th>
+                                <th>Total Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        
+        sales.forEach(sale => {
+            const date = sale.created_at ? sale.created_at.toDate().toLocaleString() : 'N/A';
+            const items = sale.items ? sale.items.map(item => item.product_name).join(', ') : 'No items';
+            const totalQuantity = sale.items ? sale.items.reduce((sum, item) => sum + item.quantity, 0) : 0;
+            
+            html += `
+                <tr>
+                    <td>${sale.transaction_code || sale.id.slice(-8)}</td>
+                    <td>${date}</td>
+                    <td>${items}</td>
+                    <td>${totalQuantity}</td>
+                    <td>${sale.payment_method || 'Cash'}</td>
+                    <td>${sale.cashier_id || 'Unknown'}</td>
+                    <td>₱${(sale.total_amount || 0).toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('reports-content').innerHTML = html;
+    }
+
+    function loadProductReport(sales) {
+        const periodText = getPeriodText(currentReportPeriod);
+        
+        // Calculate product performance
+        const productSales = {};
+        sales.forEach(sale => {
+            if (sale.items) {
+                sale.items.forEach(item => {
+                    if (!productSales[item.product_name]) {
+                        productSales[item.product_name] = {
+                            quantity: 0,
+                            revenue: 0,
+                            productId: item.product_id
+                        };
+                    }
+                    productSales[item.product_name].quantity += item.quantity;
+                    productSales[item.product_name].revenue += item.total_price;
+                });
+            }
+        });
+        
+        // Sort by revenue
+        const sortedProducts = Object.entries(productSales)
+            .sort(([,a], [,b]) => b.revenue - a.revenue);
+        
+        let html = `
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-cube"></i> Product Performance - ${periodText}</h3>
+                    <span>${sortedProducts.length} products sold</span>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="topProductsChart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="productRevenueChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-table"></i> Product Sales Details</h3>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Product Name</th>
+                                <th>Quantity Sold</th>
+                                <th>Total Revenue</th>
+                                <th>Average Price</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        
+        sortedProducts.forEach(([productName, data]) => {
+            const avgPrice = data.quantity > 0 ? data.revenue / data.quantity : 0;
+            
+            html += `
+                <tr>
+                    <td>${productName}</td>
+                    <td>${data.quantity}</td>
+                    <td>₱${data.revenue.toFixed(2)}</td>
+                    <td>₱${avgPrice.toFixed(2)}</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('reports-content').innerHTML = html;
+        
+        // Render product charts
+        renderTopProductsChart(sortedProducts);
+        renderProductRevenueChart(sortedProducts);
+    }
+
+    function loadCategoryReport(sales) {
+        const periodText = getPeriodText(currentReportPeriod);
+        
+        // Calculate category performance
+        const categorySales = {};
+        sales.forEach(sale => {
+            if (sale.items) {
+                sale.items.forEach(item => {
+                    // We need to get category from products - for now using placeholder
+                    const category = 'General'; // This should come from product data
+                    if (!categorySales[category]) {
+                        categorySales[category] = {
+                            quantity: 0,
+                            revenue: 0,
+                            transactions: 0
+                        };
+                    }
+                    categorySales[category].quantity += item.quantity;
+                    categorySales[category].revenue += item.total_price;
+                    categorySales[category].transactions += 1;
+                });
+            }
+        });
+        
+        let html = `
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-tags"></i> Category Analysis - ${periodText}</h3>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="categorySalesChart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="categoryVolumeChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('reports-content').innerHTML = html;
+        
+        // Render category charts
+        renderCategoryCharts(categorySales);
+    }
+
+    function loadPaymentReport(sales) {
+        const periodText = getPeriodText(currentReportPeriod);
+        
+        // Calculate payment method distribution
+        const paymentMethods = {};
+        sales.forEach(sale => {
+            const method = sale.payment_method || 'cash';
+            if (!paymentMethods[method]) {
+                paymentMethods[method] = {
+                    count: 0,
+                    amount: 0
+                };
+            }
+            paymentMethods[method].count += 1;
+            paymentMethods[method].amount += sale.total_amount || 0;
+        });
+        
+        let html = `
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-credit-card"></i> Payment Method Analysis - ${periodText}</h3>
+                </div>
+                <div class="grid-2">
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="paymentDistributionChart"></canvas>
+                        </div>
+                    </div>
+                    <div>
+                        <div class="chart-container">
+                            <canvas id="paymentAmountChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title"><i class="fas fa-table"></i> Payment Method Details</h3>
+                </div>
+                <div style="overflow-x: auto;">
+                    <table class="table">
+                        <thead>
+                            <tr>
+                                <th>Payment Method</th>
+                                <th>Transactions</th>
+                                <th>Total Amount</th>
+                                <th>Average Transaction</th>
+                                <th>Percentage</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+        `;
+        
+        const totalAmount = Object.values(paymentMethods).reduce((sum, method) => sum + method.amount, 0);
+        
+        Object.entries(paymentMethods).forEach(([method, data]) => {
+            const percentage = totalAmount > 0 ? (data.amount / totalAmount * 100) : 0;
+            const avgTransaction = data.count > 0 ? data.amount / data.count : 0;
+            
+            html += `
+                <tr>
+                    <td>${method.charAt(0).toUpperCase() + method.slice(1)}</td>
+                    <td>${data.count}</td>
+                    <td>₱${data.amount.toFixed(2)}</td>
+                    <td>₱${avgTransaction.toFixed(2)}</td>
+                    <td>${percentage.toFixed(1)}%</td>
+                </tr>
+            `;
+        });
+        
+        html += `
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        
+        document.getElementById('reports-content').innerHTML = html;
+        
+        // Render payment charts
+        renderPaymentCharts(paymentMethods);
+    }
+
+    // Chart Rendering Functions
+    function renderSalesTrendChart(sales) {
+        const ctx = document.getElementById('salesTrendChart').getContext('2d');
+        
+        // Group sales by date
+        const dailySales = {};
+        sales.forEach(sale => {
+            const date = sale.created_at ? sale.created_at.toDate().toDateString() : 'Unknown';
+            if (!dailySales[date]) {
+                dailySales[date] = 0;
+            }
+            dailySales[date] += sale.total_amount || 0;
+        });
+        
+        const dates = Object.keys(dailySales).slice(-7); // Last 7 days
+        const amounts = dates.map(date => dailySales[date]);
+        
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: dates,
+                datasets: [{
+                    label: 'Daily Sales (₱)',
+                    data: amounts,
+                    borderColor: '#667eea',
+                    backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                    borderWidth: 3,
+                    fill: true,
+                    tension: 0.4
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Sales Trend'
+                    }
+                }
+            }
+        });
+    }
+
+    function renderPaymentMethodChart(sales) {
+        const ctx = document.getElementById('paymentMethodChart').getContext('2d');
+        
+        const paymentMethods = {};
+        sales.forEach(sale => {
+            const method = sale.payment_method || 'cash';
+            paymentMethods[method] = (paymentMethods[method] || 0) + 1;
+        });
+        
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: Object.keys(paymentMethods).map(m => m.charAt(0).toUpperCase() + m.slice(1)),
+                datasets: [{
+                    data: Object.values(paymentMethods),
+                    backgroundColor: ['#667eea', '#764ba2', '#4fd1c7', '#f56565', '#ed8936']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Payment Methods'
+                    }
+                }
+            }
+        });
+    }
+
+    function renderHourlySalesChart(sales) {
+        const ctx = document.getElementById('hourlySalesChart').getContext('2d');
+        
+        const hourlySales = Array(24).fill(0);
+        sales.forEach(sale => {
+            if (sale.created_at) {
+                const hour = sale.created_at.toDate().getHours();
+                hourlySales[hour] += sale.total_amount || 0;
+            }
+        });
+        
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: Array.from({length: 24}, (_, i) => `${i}:00`),
+                datasets: [{
+                    label: 'Sales (₱)',
+                    data: hourlySales,
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                    borderColor: '#667eea',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Hourly Sales Distribution'
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            }
+        });
+    }
+
+    function renderTopProductsChart(products) {
+        const ctx = document.getElementById('topProductsChart').getContext('2d');
+        
+        const top10 = products.slice(0, 10);
+        const labels = top10.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name);
+        const quantities = top10.map(([, data]) => data.quantity);
+        
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Quantity Sold',
+                    data: quantities,
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Top 10 Products by Quantity'
+                    }
+                }
+            }
+        });
+    }
+
+    function renderProductRevenueChart(products) {
+        const ctx = document.getElementById('productRevenueChart').getContext('2d');
+        
+        const top10 = products.slice(0, 10);
+        const labels = top10.map(([name]) => name.length > 15 ? name.substring(0, 15) + '...' : name);
+        const revenues = top10.map(([, data]) => data.revenue);
+        
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: labels,
+                datasets: [{
+                    data: revenues,
+                    backgroundColor: [
+                        '#667eea', '#764ba2', '#4fd1c7', '#f56565', '#ed8936',
+                        '#48bb78', '#9f7aea', '#ecc94b', '#4299e1', '#ed64a6'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Revenue Distribution'
+                    }
+                }
+            }
+        });
+    }
+
+    function renderCategoryCharts(categorySales) {
+        // Category Sales Chart
+        const salesCtx = document.getElementById('categorySalesChart').getContext('2d');
+        const categories = Object.keys(categorySales);
+        const revenues = categories.map(cat => categorySales[cat].revenue);
+        
+        new Chart(salesCtx, {
+            type: 'bar',
+            data: {
+                labels: categories,
+                datasets: [{
+                    label: 'Revenue (₱)',
+                    data: revenues,
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Revenue by Category'
+                    }
+                }
+            }
+        });
+        
+        // Category Volume Chart
+        const volumeCtx = document.getElementById('categoryVolumeChart').getContext('2d');
+        const quantities = categories.map(cat => categorySales[cat].quantity);
+        
+        new Chart(volumeCtx, {
+            type: 'pie',
+            data: {
+                labels: categories,
+                datasets: [{
+                    data: quantities,
+                    backgroundColor: [
+                        '#667eea', '#764ba2', '#4fd1c7', '#f56565', '#ed8936'
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Sales Volume by Category'
+                    }
+                }
+            }
+        });
+    }
+
+    function renderPaymentCharts(paymentMethods) {
+        // Payment Distribution Chart
+        const distCtx = document.getElementById('paymentDistributionChart').getContext('2d');
+        const methods = Object.keys(paymentMethods);
+        const counts = methods.map(method => paymentMethods[method].count);
+        
+        new Chart(distCtx, {
+            type: 'pie',
+            data: {
+                labels: methods.map(m => m.charAt(0).toUpperCase() + m.slice(1)),
+                datasets: [{
+                    data: counts,
+                    backgroundColor: ['#667eea', '#764ba2', '#4fd1c7']
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Transaction Distribution'
+                    }
+                }
+            }
+        });
+        
+        // Payment Amount Chart
+        const amountCtx = document.getElementById('paymentAmountChart').getContext('2d');
+        const amounts = methods.map(method => paymentMethods[method].amount);
+        
+        new Chart(amountCtx, {
+            type: 'bar',
+            data: {
+                labels: methods.map(m => m.charAt(0).toUpperCase() + m.slice(1)),
+                datasets: [{
+                    label: 'Total Amount (₱)',
+                    data: amounts,
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)'
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    title: {
+                        display: true,
+                        text: 'Revenue by Payment Method'
+                    }
+                }
+            }
+        });
+    }
+
+    // Utility Functions
+    function getPeriodText(period) {
+        const texts = {
+            'today': 'Today',
+            'yesterday': 'Yesterday',
+            'week': 'This Week',
+            'month': 'This Month',
+            'quarter': 'This Quarter',
+            'year': 'This Year',
+            'custom': 'Custom Range'
+        };
+        return texts[period] || period;
+    }
+
+    // Export Report Function
+    function exportReport() {
+        // Create CSV content based on current report type
+        let csvContent = "data:text/csv;charset=utf-8,";
+        
+        switch(currentReportType) {
+            case 'summary':
+                csvContent += "Sales Summary Report\n";
+                csvContent += `Period: ${getPeriodText(currentReportPeriod)}\n`;
+                csvContent += `Total Sales,${salesData.reduce((sum, sale) => sum + (sale.total_amount || 0), 0).toFixed(2)}\n`;
+                csvContent += `Total Transactions,${salesData.length}\n`;
+                break;
+            case 'detailed':
+                csvContent += "Transaction ID,Date,Items,Quantity,Payment Method,Cashier,Total Amount\n";
+                salesData.forEach(sale => {
+                    const date = sale.created_at ? sale.created_at.toDate().toLocaleString() : 'N/A';
+                    const items = sale.items ? sale.items.map(item => item.product_name).join('; ') : 'No items';
+                    const totalQuantity = sale.items ? sale.items.reduce((sum, item) => sum + item.quantity, 0) : 0;
+                    
+                    csvContent += `${sale.transaction_code || sale.id.slice(-8)},${date},"${items}",${totalQuantity},${sale.payment_method || 'Cash'},${sale.cashier_id || 'Unknown'},${(sale.total_amount || 0).toFixed(2)}\n`;
+                });
+                break;
+            case 'product':
+                // Calculate product performance for export
+                const productSales = {};
+                salesData.forEach(sale => {
+                    if (sale.items) {
+                        sale.items.forEach(item => {
+                            if (!productSales[item.product_name]) {
+                                productSales[item.product_name] = {
+                                    quantity: 0,
+                                    revenue: 0
+                                };
+                            }
+                            productSales[item.product_name].quantity += item.quantity;
+                            productSales[item.product_name].revenue += item.total_price;
+                        });
+                    }
+                });
+                
+                csvContent += "Product Name,Quantity Sold,Total Revenue,Average Price\n";
+                Object.entries(productSales).forEach(([name, data]) => {
+                    const avgPrice = data.quantity > 0 ? data.revenue / data.quantity : 0;
+                    csvContent += `${name},${data.quantity},${data.revenue.toFixed(2)},${avgPrice.toFixed(2)}\n`;
+                });
+                break;
+        }
+        
+        // Create download link
+        const encodedUri = encodeURI(csvContent);
+        const link = document.createElement("a");
+        link.setAttribute("href", encodedUri);
+        link.setAttribute("download", `sales_report_${currentReportType}_${new Date().toISOString().split('T')[0]}.csv`);
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        showFloatingNotification('✅ Report exported successfully!', 'success');
+    }
+
+    // Print Report Function
+    function printReport() {
+        const printContent = document.getElementById('reports-content').innerHTML;
+        const summaryContent = document.getElementById('report-summary').innerHTML;
+        
+        const printHTML = `
+            <div style="padding: 2rem; font-family: Arial, sans-serif;">
+                <h1 style="text-align: center; color: #667eea; margin-bottom: 1rem;">
+                    Pholai's Boutique - Sales Report
+                </h1>
+                <div style="margin-bottom: 2rem;">
+                    <p><strong>Report Type:</strong> ${currentReportType.charAt(0).toUpperCase() + currentReportType.slice(1)}</p>
+                    <p><strong>Period:</strong> ${getPeriodText(currentReportPeriod)}</p>
+                    <p><strong>Generated:</strong> ${new Date().toLocaleString()}</p>
+                </div>
+                ${summaryContent}
+                ${printContent}
+            </div>
+        `;
+        
+        document.getElementById('report-print-content').innerHTML = printHTML;
+        document.getElementById('reportPrintModal').style.display = 'flex';
+    }
+
+    function closeReportPrintModal() {
+        document.getElementById('reportPrintModal').style.display = 'none';
+    }
+
     // Utility Functions
     function showSection(sectionId) {
         document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
@@ -2603,6 +3580,11 @@
         
         if (sectionId === 'dashboard') {
             updateDashboardStats();
+        } else if (sectionId === 'reports') {
+            // Initialize reports when showing the reports section
+            setTimeout(() => {
+                initializeReports();
+            }, 100);
         }
     }
 
